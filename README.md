@@ -591,17 +591,23 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ## credits
 
-- **[FastMCP](https://github.com/jlowin/fastmcp)** — Python framework for building MCP servers
-- **[rank-bm25](https://github.com/dorianbrown/rank_bm25)** — Pure Python BM25 implementation
-- **[TeleBot Studio](https://telebotstudio.com)** — The platform and documentation
-- **[Model Context Protocol](https://modelcontextprotocol.io)** — Anthropic's standard for AI tool integration
+this project is built on top of these excellent open-source projects:
+
+- **[FastMCP](https://github.com/jlowin/fastmcp)** — Python framework for building Model Context Protocol servers.
+- **[rank-bm25](https://github.com/dorianbrown/rank_bm25)** — Lightweight BM25 ranking implementation powering documentation search.
+- **[TeleBot Studio](https://telebotstudio.com)** — Official platform and REST API.
+- **[Model Context Protocol](https://modelcontextprotocol.io)** — Open protocol for connecting AI models to external tools.
 
 ---
 
 <div align="center">
 
-⭐ If this project helps you, consider giving it a GitHub star.
+⭐ **Enjoying the project? Consider giving it a star.**
 
-MIT License — see [LICENSE](LICENSE)
+Made with ❤️ by **Harshi**
+
+Telegram: **@YOUR_USERNAME**
+
+Released under the **MIT License**.
 
 </div>
