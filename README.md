@@ -602,11 +602,9 @@ this project is built on top of these excellent open-source projects:
 
 <div align="center">
 
-⭐ **Enjoying the project? Consider giving it a star.**
+⭐ **Enjoying the project? Consider giving it a GitHub star.**
 
-Made with ❤️ by **Harshi**
-
-Telegram: **@YorichiiPrime**
+Made with ❤️ by **[YorichiiPrime](https://t.me/yorichiiprime)**
 
 Released under the **MIT License**.
 
