@@ -3,7 +3,7 @@ fastmcp>=2.0.0,<4.0.0
 rank-bm25>=0.2.2,<1.0.0
 
 # API client (Phase 2 — REST API integration)
-httpx>=0.27.0,<1.0.0
+httpx>=0.28.1,<1.0.0
 
 # Documentation crawler utilities (optional — only needed for doc updates)
 beautifulsoup4>=4.12.3,<5.0.0
