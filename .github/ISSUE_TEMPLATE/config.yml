@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/telebotstudio/telebotstudio-mcp#readme
+    about: Check the README and docs/ directory for usage information.
+  - name: Discussions
+    url: https://github.com/telebotstudio/telebotstudio-mcp/discussions
+    about: Ask questions and share ideas in GitHub Discussions.

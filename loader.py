@@ -20,7 +20,6 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +57,7 @@ class MarkdownLoader:
         """
         self.docs_path = Path(docs_path)
 
-    def load(self) -> List[Chunk]:
+    def load(self) -> list[Chunk]:
         """
         Load all markdown files and return a list of chunks.
 
@@ -81,7 +80,7 @@ class MarkdownLoader:
 
         logger.info("Found %d markdown files in %s", len(files), self.docs_path)
 
-        chunks: List[Chunk] = []
+        chunks: list[Chunk] = []
 
         for file in files:
             try:
@@ -98,7 +97,7 @@ class MarkdownLoader:
 
         return chunks
 
-    def _parse_file(self, path: Path) -> List[Chunk]:
+    def _parse_file(self, path: Path) -> list[Chunk]:
         """
         Parse a single markdown file into heading-aware chunks.
 
@@ -120,11 +119,11 @@ class MarkdownLoader:
         if not lines:
             return []
 
-        chunks: List[Chunk] = []
+        chunks: list[Chunk] = []
 
         current_title = path.stem  # Default: filename without extension
         current_level = 0
-        current_lines: List[str] = []
+        current_lines: list[str] = []
 
         inside_code = False
         code_fence_char = ""
@@ -199,7 +198,7 @@ if __name__ == "__main__":
     chunks = loader.load()
 
     print(f"\n{'=' * 60}")
-    print(f"  TeleBot Studio Chunk Inspector")
+    print("  TeleBot Studio Chunk Inspector")
     print(f"  {len(chunks)} chunks from '{docs_dir}/'")
     print(f"{'=' * 60}\n")
 

@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Optional
+from typing import Any, ClassVar
+
+from api.utils import mask_credential
 
 logger = logging.getLogger("telebotstudio-mcp.session")
 
@@ -44,17 +46,17 @@ class CredentialManager:
     concurrent requests in HTTP mode cannot interfere with each other.
     """
 
-    _lock = threading.Lock()
+    _lock: ClassVar[threading.Lock] = threading.Lock()
 
     # Per-session storage: session_id -> {"api_key": str, "bot_id": str}
-    _sessions: dict[str, dict[str, Optional[str]]] = {}
+    _sessions: ClassVar[dict[str, dict[str, str | None]]] = {}
 
     # Global fallback for STDIO mode (no session ID)
-    _default_api_key: Optional[str] = None
-    _default_bot_id: Optional[str] = None
+    _default_api_key: ClassVar[str | None] = None
+    _default_bot_id: ClassVar[str | None] = None
 
     # Thread-local active session ID (replaces class-level _current_session_id)
-    _tls = threading.local()
+    _tls: ClassVar[threading.local] = threading.local()
 
     # ---- Session Management ----
 
@@ -75,7 +77,7 @@ class CredentialManager:
     # ---- Internal Helpers ----
 
     @classmethod
-    def _get_store(cls) -> dict[str, Optional[str]]:
+    def _get_store(cls) -> dict[str, str | None]:
         """Get a snapshot of the credential store for the current session.
 
         Returns a COPY of the store dict so that callers don't
@@ -122,19 +124,19 @@ class CredentialManager:
     def set_bot_id(cls, bot_id: str) -> None:
         """Store the active Bot ID for the current session."""
         cls._set_in_store("bot_id", bot_id.strip())
-        logger.info("Bot ID set for session: %s", cls._mask(bot_id))
+        logger.info("Bot ID set for session: %s", mask_credential(bot_id))
 
     # ---- Getters ----
 
     @classmethod
-    def get_api_key(cls) -> Optional[str]:
+    def get_api_key(cls) -> str | None:
         """Return the session API key, or None if not set."""
         store = cls._get_store()
         key = store.get("api_key")
         return key if key else None
 
     @classmethod
-    def get_bot_id(cls) -> Optional[str]:
+    def get_bot_id(cls) -> str | None:
         """Return the session Bot ID, or None if not set."""
         store = cls._get_store()
         bid = store.get("bot_id")
@@ -159,7 +161,7 @@ class CredentialManager:
         bid = cls.get_bot_id()
         return {
             "api_key_set": cls.has_api_key(),
-            "api_key_preview": cls._mask(key) if key else None,
+            "api_key_preview": mask_credential(key) if key else None,
             "bot_id_set": cls.has_bot_id(),
             "bot_id": bid if bid else None,
         }
@@ -184,7 +186,7 @@ class CredentialManager:
         with cls._lock:
             if session_id in cls._sessions:
                 del cls._sessions[session_id]
-                logger.info("Session %s cleared", cls._mask(session_id))
+                logger.info("Session %s cleared", mask_credential(session_id))
 
     @classmethod
     def active_session_count(cls) -> int:
@@ -205,12 +207,3 @@ class CredentialManager:
             cls._default_bot_id = None
         logger.info("Cleaned up %d sessions", count)
         return count
-
-    # ---- Helpers ----
-
-    @staticmethod
-    def _mask(value: str) -> str:
-        """Mask a credential for safe display: 'tbs_***...***xyz'."""
-        if len(value) <= 8:
-            return "***"
-        return f"{value[:4]}...{value[-4:]}"

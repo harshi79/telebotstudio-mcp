@@ -8,9 +8,13 @@ via the TeleBot Studio REST API v2.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from api.auth import validate_bot_id
-from api.client import TeleBotStudioClient
+from api.errors import ServerError
+
+if TYPE_CHECKING:
+    from api.client import TeleBotStudioClient
 
 logger = logging.getLogger("telebotstudio-mcp.api.bot_control")
 
@@ -35,7 +39,7 @@ class BotControlManager:
             logger.info("Started bot: %s", bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to start bot: {response.result}")
+        raise ServerError(f"Failed to start bot: {response.result}")
 
     def stop(self, bot_id: str) -> str:
         """
@@ -51,7 +55,7 @@ class BotControlManager:
             logger.info("Stopped bot: %s", bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to stop bot: {response.result}")
+        raise ServerError(f"Failed to stop bot: {response.result}")
 
     def restart(self, bot_id: str) -> str:
         """
@@ -67,4 +71,4 @@ class BotControlManager:
             logger.info("Restarted bot: %s", bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to restart bot: {response.result}")
+        raise ServerError(f"Failed to restart bot: {response.result}")

@@ -60,7 +60,7 @@ def show_stats(engine: SearchEngine) -> None:
     cache = engine.cache  # Public property
 
     print(f"\n{'=' * 60}")
-    print(f"  TeleBot Studio MCP — Index Statistics")
+    print("  TeleBot Studio MCP — Index Statistics")
     print(f"{'=' * 60}")
     print(f"  Total chunks:     {len(chunks)}")
     print(f"  Total pages:      {len(pages)}")
@@ -77,7 +77,7 @@ def show_stats(engine: SearchEngine) -> None:
     for chunk in chunks:
         level_counts[chunk.heading_level] = level_counts.get(chunk.heading_level, 0) + 1
 
-    print(f"\n  Heading Level Distribution:")
+    print("\n  Heading Level Distribution:")
     for level in sorted(level_counts):
         label = {0: "Root", 1: "H1", 2: "H2", 3: "H3"}.get(level, f"H{level}")
         bar = "█" * (level_counts[level] // max(1, len(chunks) // 50))
@@ -90,7 +90,7 @@ def show_stats(engine: SearchEngine) -> None:
     func_count = sum(1 for f in flags if f["is_function"])
     error_count = sum(1 for f in flags if f["is_error"])
 
-    print(f"\n  Category Breakdown:")
+    print("\n  Category Breakdown:")
     print(f"    Code examples:  {code_count}")
     print(f"    API reference:  {api_count}")
     print(f"    Library info:   {lib_count}")
@@ -98,7 +98,7 @@ def show_stats(engine: SearchEngine) -> None:
     print(f"    Error/trouble:  {error_count}")
 
     # Pages list
-    print(f"\n  Available Pages:")
+    print("\n  Available Pages:")
     for page in pages:
         chunk_count = sum(1 for c in chunks if c.file == page)
         print(f"    {page} ({chunk_count} chunks)")

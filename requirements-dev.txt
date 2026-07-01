@@ -1,0 +1,6 @@
+# Dev/test dependencies (install on top of requirements.txt)
+-r requirements.txt
+
+pytest>=8.0.0,<9.0.0
+ruff>=0.8.0,<1.0.0
+mypy>=1.13.0,<2.0.0

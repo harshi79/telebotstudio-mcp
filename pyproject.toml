@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# Project metadata
+# ---------------------------------------------------------------------------
+
+[project]
+name = "telebotstudio-mcp"
+version = "2.0.0"
+description = "BM25-powered TeleBot Studio documentation search & REST API MCP server"
+requires-python = ">=3.11"
+license = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/telebotstudio/telebotstudio-mcp"
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B905",   # zip without strict (Python 3.10+ compat)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "agent", "tools", "loader", "search", "server"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "rank_bm25",
+    "fastmcp",
+    "starlette.*",
+    "httpx",
+]
+ignore_missing_imports = true

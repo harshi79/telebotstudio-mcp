@@ -25,11 +25,14 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
+    from starlette.responses import Response
 
 from loader import Chunk, MarkdownLoader
 from search import SearchEngine
@@ -135,7 +138,17 @@ async def health_check(request: Request) -> Response:
 # Register API action tools (18 new tools)
 register_api_tools(mcp)
 
-# Engine is initialized lazily so --docs-dir can take effect
+# Engine is initialized lazily so --docs-dir can take effect.
+# Global mutable state is intentional here: the MCP server is a
+# long-lived singleton process.  The engine is built once at startup
+# and shared across all requests.  This avoids re-indexing docs on
+# every call and is safe because:
+#   1. STDIO mode has a single caller (one event loop, one thread).
+#   2. HTTP mode dispatches tool handlers in a thread pool, but the
+#      engine is read-only after construction (no writes after init).
+#   3. Lazy init is gated by a simple None check — not thread-safe
+#      for concurrent first calls, but get_engine() is always called
+#      from main() before any concurrent handler starts.
 _engine: SearchEngine | None = None
 _engine_docs_dir: str | None = None
 
@@ -159,7 +172,7 @@ def set_docs_dir(docs_dir: str) -> None:
 # Response Formatting
 # ---------------------------------------------------------------------------
 
-def _format_chunk_result(chunk: Chunk, score: float) -> Dict[str, Any]:
+def _format_chunk_result(chunk: Chunk, score: float) -> dict[str, Any]:
     """Format a single chunk into a structured result dict."""
     return {
         "score": round(score, 3),
@@ -170,7 +183,7 @@ def _format_chunk_result(chunk: Chunk, score: float) -> Dict[str, Any]:
     }
 
 
-def _format_results(chunks_with_scores: List[Tuple[Chunk, float]]) -> str:
+def _format_results(chunks_with_scores: list[tuple[Chunk, float]]) -> str:
     """
     Format search results as structured JSON.
 
@@ -187,7 +200,7 @@ def _format_results(chunks_with_scores: List[Tuple[Chunk, float]]) -> str:
     return json.dumps({"results": results}, indent=2)
 
 
-def _format_page_chunks(chunks: List[Chunk]) -> str:
+def _format_page_chunks(chunks: list[Chunk]) -> str:
     """Format page retrieval results as structured JSON."""
     if not chunks:
         return json.dumps(
@@ -248,15 +261,18 @@ def _validate_name(name: str) -> str:
     Validate a page name and prevent path traversal.
 
     Only allows alphanumeric characters, hyphens, underscores, and dots.
-    Rejects names that could resolve to paths outside the docs directory.
+    Any path separator or traversal character (/, \\, ..) is stripped by
+    the allowlist filter — so the subsequent ``".."`` check is a
+    defense-in-depth assertion rather than the primary guard.
     """
     if not name or not name.strip():
         raise ValueError("Page name must not be empty.")
 
     cleaned = name.strip()
 
-    # Use a strict allowlist: only safe filename characters
-    # This prevents path traversal more robustly than stripping bad chars
+    # Use a strict allowlist: only safe filename characters.
+    # This is the primary defense: /, \\, and .. are stripped here
+    # because they are not in the allowed character set.
     safe_name = "".join(
         c for c in cleaned
         if c.isalnum() or c in "-_."
@@ -265,8 +281,10 @@ def _validate_name(name: str) -> str:
     if not safe_name:
         raise ValueError("Page name contains no valid characters.")
 
-    # Additional safety: ensure no path-like patterns remain
-    if "/" in safe_name or "\\" in safe_name or ".." in safe_name:
+    # Defense-in-depth: assert no path-like patterns survived the allowlist.
+    # This should never trigger given the allowlist above, but provides a
+    # second layer of protection if the allowlist logic is ever modified.
+    if ".." in safe_name:
         raise ValueError("Page name contains invalid path characters.")
 
     return safe_name

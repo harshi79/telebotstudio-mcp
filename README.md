@@ -4,7 +4,7 @@
 
 **Ground your AI in official docs. Let it manage your bots.**
 
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-8A2BE2?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://modelcontextprotocol.io)
 [![FastMCP](https://img.shields.io/badge/Powered_by-FastMCP-005A9C?style=flat-square)](https://github.com/jlowin/fastmcp)
@@ -1302,8 +1302,8 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ### future
 
-- [ ] GitHub Actions CI/CD pipeline
-- [ ] Pytest unit and integration test suite
+- [x] GitHub Actions CI/CD pipeline
+- [x] Pytest unit and integration test suite (244 tests)
 - [ ] Abstract into a generic documentation MCP framework
 
 ---

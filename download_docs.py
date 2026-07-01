@@ -60,7 +60,7 @@ def download_docs(
 
     os.makedirs(docs_dir, exist_ok=True)
 
-    with open(urls_file, "r", encoding="utf-8") as f:
+    with open(urls_file, encoding="utf-8") as f:
         urls = [line.strip() for line in f if line.strip()]
 
     if not urls:

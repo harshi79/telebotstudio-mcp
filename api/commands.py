@@ -11,10 +11,14 @@ required).
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from api.auth import validate_bot_id, validate_command_name, validate_command_code
-from api.client import TeleBotStudioClient
+from api.auth import validate_bot_id, validate_command_code, validate_command_name
+from api.errors import ServerError, ValidationError
 from api.models import CommandInfo
+
+if TYPE_CHECKING:
+    from api.client import TeleBotStudioClient
 
 logger = logging.getLogger("telebotstudio-mcp.api.commands")
 
@@ -44,7 +48,7 @@ class CommandManager:
             logger.info("Created command '%s' on bot %s", command, bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to create command: {response.result}")
+        raise ServerError(f"Failed to create command: {response.result}")
 
     def get(self, bot_id: str, command_name: str) -> CommandInfo:
         """
@@ -72,7 +76,7 @@ class CommandManager:
                 is_pinned=data.get("is_pinned", False),
             )
 
-        raise ValueError(f"Failed to get command: {response.result}")
+        raise ValidationError(f"Failed to get command: {response.result}")
 
     def update(self, bot_id: str, command_name: str, code: str) -> str:
         """
@@ -93,7 +97,7 @@ class CommandManager:
             logger.info("Updated command '%s' on bot %s", command_name, bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to update command: {response.result}")
+        raise ServerError(f"Failed to update command: {response.result}")
 
     def delete(self, bot_id: str, command_name: str) -> str:
         """
@@ -113,7 +117,7 @@ class CommandManager:
             logger.info("Deleted command '%s' on bot %s", command_name, bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to delete command: {response.result}")
+        raise ServerError(f"Failed to delete command: {response.result}")
 
     def list_all(self, bot_id: str) -> list[CommandInfo]:
         """
@@ -151,4 +155,4 @@ class CommandManager:
                 for cmd in commands_data
             ]
 
-        raise ValueError(f"Failed to list commands: {response.result}")
+        raise ServerError(f"Failed to list commands: {response.result}")

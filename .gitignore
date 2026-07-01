@@ -33,3 +33,15 @@ urls.txt
 # Environment
 .env
 .env.local
+
+# Test/lint cache
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Session artifacts (not for release)
+worklog.md
+PRODUCTION_AUDIT.md

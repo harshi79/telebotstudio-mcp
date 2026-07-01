@@ -11,17 +11,19 @@ Checks:
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from api.auth import (
-    validate_api_key,
     validate_bot_id,
     validate_bot_token,
-    validate_command_name,
     validate_command_code,
+    validate_command_name,
 )
 from api.errors import ValidationError
-from api.models import ExecutionPlan
 from api.session import CredentialManager
+
+if TYPE_CHECKING:
+    from api.models import ExecutionPlan
 
 logger = logging.getLogger("telebotstudio-mcp.agent.validator")
 

@@ -13,7 +13,6 @@ import logging
 import re
 import threading
 from collections import OrderedDict
-from typing import Dict, List, Optional, Set, Tuple
 
 from rank_bm25 import BM25Okapi
 
@@ -76,7 +75,7 @@ class LRUCache:
     def _key(self, method: str, query: str, top_k: int) -> str:
         return f"{method}\x00{query}\x00{top_k}"
 
-    def get(self, method: str, query: str, top_k: int) -> Optional[list]:
+    def get(self, method: str, query: str, top_k: int) -> list | None:
         k = self._key(method, query, top_k)
         with self._lock:
             if k in self._cache:
@@ -158,7 +157,7 @@ class SearchEngine:
         "timeout", "refused", "denied", "not found", "invalid",
     })
 
-    def __init__(self, chunks: List[Chunk], cache_size: int = 256) -> None:
+    def __init__(self, chunks: list[Chunk], cache_size: int = 256) -> None:
         self.chunks = chunks
         self._cache = LRUCache(maxsize=cache_size)
 
@@ -175,7 +174,7 @@ class SearchEngine:
         ]
 
         # Build chunk index for O(1) lookups (fixes O(n) index() scan)
-        self._chunk_to_idx: Dict[int, int] = {
+        self._chunk_to_idx: dict[int, int] = {
             id(chunk): i for i, chunk in enumerate(chunks)
         }
 
@@ -223,7 +222,7 @@ class SearchEngine:
         self,
         query: str,
         top_k: int = 5,
-    ) -> List[Tuple[Chunk, float]]:
+    ) -> list[tuple[Chunk, float]]:
         """
         Full-text BM25 search across all chunks.
 
@@ -249,7 +248,7 @@ class SearchEngine:
         scored_indices = [(float(scores[i]), i) for i in range(len(scores))]
         top_scored = heapq.nlargest(top_k, scored_indices, key=lambda x: x[0])
 
-        results: List[Tuple[Chunk, float]] = []
+        results: list[tuple[Chunk, float]] = []
         for score, idx in top_scored:
             if score <= 0:
                 break  # All remaining are <= 0 since we used nlargest
@@ -259,7 +258,7 @@ class SearchEngine:
         self._cache.put("search", query, top_k, results)
         return results
 
-    def get_page(self, filename: str) -> List[Chunk]:
+    def get_page(self, filename: str) -> list[Chunk]:
         """
         Return all chunks belonging to a single markdown file.
 
@@ -276,7 +275,7 @@ class SearchEngine:
             or chunk.file.lower() == filename_md
         ]
 
-    def list_pages(self) -> List[str]:
+    def list_pages(self) -> list[str]:
         """
         Return a sorted list of all unique markdown filenames.
         """
@@ -286,7 +285,7 @@ class SearchEngine:
         self,
         query: str,
         top_k: int = 5,
-    ) -> List[Tuple[Chunk, float]]:
+    ) -> list[tuple[Chunk, float]]:
         """
         Scoped search that prefers chunks containing code blocks.
 
@@ -316,7 +315,7 @@ class SearchEngine:
         self,
         query: str,
         top_k: int = 5,
-    ) -> List[Tuple[Chunk, float]]:
+    ) -> list[tuple[Chunk, float]]:
         """
         Scoped search restricted to API references, endpoints, and
         configuration parameters.
@@ -336,7 +335,7 @@ class SearchEngine:
         self,
         query: str,
         top_k: int = 5,
-    ) -> List[Tuple[Chunk, float]]:
+    ) -> list[tuple[Chunk, float]]:
         """
         Scoped search targeting library installations, imports, and
         third-party dependency information.
@@ -356,7 +355,7 @@ class SearchEngine:
         self,
         query: str,
         top_k: int = 5,
-    ) -> List[Tuple[Chunk, float]]:
+    ) -> list[tuple[Chunk, float]]:
         """
         Scoped search targeting specific function definitions, signatures,
         and method explanations.
@@ -376,7 +375,7 @@ class SearchEngine:
         self,
         query: str,
         top_k: int = 5,
-    ) -> List[Tuple[Chunk, float]]:
+    ) -> list[tuple[Chunk, float]]:
         """
         Scoped search targeting error codes, exception handling,
         troubleshooting guides, and common pitfalls.
@@ -401,8 +400,8 @@ class SearchEngine:
         query: str,
         top_k: int,
         flag_key: str,
-        title_keywords: Set[str],
-    ) -> List[Tuple[Chunk, float]]:
+        title_keywords: set[str],
+    ) -> list[tuple[Chunk, float]]:
         """
         Generic scoped search implementation.
 
@@ -455,7 +454,7 @@ if __name__ == "__main__":
     engine = SearchEngine(chunks)
 
     print(f"\n{'=' * 60}")
-    print(f"  TeleBot Studio Search Engine — Interactive Mode")
+    print("  TeleBot Studio Search Engine — Interactive Mode")
     print(f"  {len(chunks)} chunks indexed")
     print(f"{'=' * 60}\n")
 

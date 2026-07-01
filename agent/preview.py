@@ -9,9 +9,12 @@ without executing anything.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from api.models import ExecutionPlan
+if TYPE_CHECKING:
+    from api.models import ExecutionPlan
+
+from api.utils import mask_value
 
 
 class Preview:
@@ -34,11 +37,11 @@ class Preview:
 
             # Add parameter details (mask sensitive values)
             if step.action == "create_bot":
-                step_info["bot_token"] = _mask_token(
+                step_info["bot_token"] = mask_value(
                     step.params.get("bot_token", "")
                 )
             elif step.action == "update_bot_token":
-                step_info["new_token"] = _mask_token(
+                step_info["new_token"] = mask_value(
                     step.params.get("new_token", "")
                 )
             elif step.action in ("create_command", "update_command"):
@@ -86,8 +89,8 @@ class Preview:
             "action": action,
             "description": description,
             "warning": (
-                f"This is a destructive operation. "
-                f"Set confirm=true to execute."
+                "This is a destructive operation. "
+                "Set confirm=true to execute."
             ),
         }
 
@@ -123,10 +126,3 @@ def _generate_summary(plan: ExecutionPlan) -> str:
         return "Update bot token (bot will restart)"
 
     return f"Execute {len(plan.steps)} operation(s)"
-
-
-def _mask_token(token: str) -> str:
-    """Mask a bot token for safe display."""
-    if len(token) <= 10:
-        return "***"
-    return f"{token[:5]}...{token[-5:]}"

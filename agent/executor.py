@@ -10,9 +10,7 @@ Executes validated ExecutionPlans step by step, with:
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 
 from api.bot_control import BotControlManager
 from api.bots import BotManager
@@ -26,6 +24,7 @@ from api.models import (
     StepResult,
 )
 from api.session import CredentialManager
+from api.utils import async_sleep
 
 logger = logging.getLogger("telebotstudio-mcp.agent.executor")
 
@@ -109,17 +108,10 @@ class Executor:
     def _rate_limit_pause() -> None:
         """Pause between batch steps to respect rate limits.
 
-        Uses the same async-aware sleep logic as TeleBotStudioClient
-        so the event loop is not blocked under HTTP transport.
+        Delegates to the shared async-aware sleep utility so the
+        event loop is not blocked under HTTP transport.
         """
-        try:
-            loop = asyncio.get_running_loop()
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = loop.run_in_executor(pool, time.sleep, _STEP_DELAY)
-                concurrent.futures.wait([future])
-        except RuntimeError:
-            time.sleep(_STEP_DELAY)
+        async_sleep(_STEP_DELAY)
 
     @staticmethod
     def _execute_step(
@@ -131,6 +123,13 @@ class Executor:
     ) -> StepResult:
         """Execute a single plan step and return the result."""
         try:
+            # Resolve bot_id with proper typing: params override session fallback
+            def _resolve_bid(params: dict, fallback: str | None) -> str:
+                bid = params.get("bot_id", fallback)
+                if not bid:
+                    raise ValueError("bot_id is required but not available")
+                return str(bid)
+
             if step.action == "create_bot":
                 info = bot_mgr.create(step.params["bot_token"])
                 return StepResult(
@@ -141,7 +140,7 @@ class Executor:
                 )
 
             elif step.action == "delete_bot":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = bot_mgr.delete(bid)
                 return StepResult(
                     action=step.action,
@@ -150,7 +149,7 @@ class Executor:
                 )
 
             elif step.action == "update_bot_token":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = bot_mgr.update_token(
                     bid, step.params["new_token"]
                 )
@@ -161,7 +160,7 @@ class Executor:
                 )
 
             elif step.action == "create_command":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = cmd_mgr.create(
                     bid, step.params["command"], step.params["code"]
                 )
@@ -172,7 +171,7 @@ class Executor:
                 )
 
             elif step.action == "update_command":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = cmd_mgr.update(
                     bid, step.params["command_name"], step.params["code"]
                 )
@@ -183,7 +182,7 @@ class Executor:
                 )
 
             elif step.action == "delete_command":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = cmd_mgr.delete(bid, step.params["command_name"])
                 return StepResult(
                     action=step.action,
@@ -192,7 +191,7 @@ class Executor:
                 )
 
             elif step.action == "start_bot":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = control_mgr.start(bid)
                 return StepResult(
                     action=step.action,
@@ -201,7 +200,7 @@ class Executor:
                 )
 
             elif step.action == "stop_bot":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = control_mgr.stop(bid)
                 return StepResult(
                     action=step.action,
@@ -210,7 +209,7 @@ class Executor:
                 )
 
             elif step.action == "restart_bot":
-                bid = step.params.get("bot_id", bot_id)
+                bid = _resolve_bid(step.params, bot_id)
                 msg = control_mgr.restart(bid)
                 return StepResult(
                     action=step.action,
@@ -231,14 +230,6 @@ class Executor:
                 action=step.action,
                 success=False,
                 message=f"{e.error_category}: {e.message}",
-            )
-
-        except ValueError as e:
-            logger.error("Step '%s' validation error: %s", step.action, e)
-            return StepResult(
-                action=step.action,
-                success=False,
-                message=f"validation_error: {e}",
             )
 
         except Exception as e:

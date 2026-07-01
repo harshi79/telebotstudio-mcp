@@ -12,23 +12,23 @@ Handles:
 
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import logging
-import time
 from typing import Any
 
 import httpx
 
 from api.errors import (
     AuthenticationError,
-    TbsConnectionError,
     RateLimitError,
     ResourceNotFoundError,
     ServerError,
+    TbsConnectionError,
     TeleBotStudioError,
     ValidationError,
 )
 from api.models import ApiResponse
+from api.utils import async_sleep
 
 logger = logging.getLogger("telebotstudio-mcp.client")
 
@@ -73,10 +73,8 @@ class TeleBotStudioClient:
     def close(self) -> None:
         """Close the underlying httpx client."""
         if self._http is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._http.close()
-            except Exception:
-                pass
             self._http = None
 
     # ---- Auth ----
@@ -216,28 +214,8 @@ class TeleBotStudioClient:
 
     @staticmethod
     def _sleep(seconds: float) -> None:
-        """
-        Sleep that works in both sync and async contexts.
-
-        When called from within a running event loop (HTTP transport),
-        uses run_in_executor + result() to block the calling thread
-        without blocking the event loop. When no event loop is running
-        (STDIO transport), uses plain time.sleep.
-        """
-        try:
-            loop = asyncio.get_running_loop()
-            # We're inside an async context but our code is sync.
-            # httpx sync client is fine — the sleep is the issue.
-            # Use run_in_executor and wait for it to complete.
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = loop.run_in_executor(pool, time.sleep, seconds)
-                # Block the calling sync thread until the sleep completes,
-                # but the event loop remains free to process other coroutines.
-                concurrent.futures.wait([future])
-        except RuntimeError:
-            # No running event loop — safe to use time.sleep
-            time.sleep(seconds)
+        """Delegate to the shared async-aware sleep utility."""
+        async_sleep(seconds)
 
     # ---- Response Parsing ----
 

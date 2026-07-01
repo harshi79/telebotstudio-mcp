@@ -3,6 +3,7 @@ __pycache__
 *.pyo
 *.pyd
 .git
+.github
 .gitignore
 .venv
 venv
@@ -23,10 +24,29 @@ desktop.ini
 *.log
 urls.txt
 
+# Test suite — not needed in production image
+tests/
+pytest_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Open-source maturity files — not needed at runtime
+SECURITY.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+PRODUCTION_AUDIT.md
+LICENSE
+
 # Dev scripts not needed in production image
 crawler.py
 download_docs.py
 build_index.py
+
+# Dev configuration
+requirements-dev.txt
+pyproject.toml
 
 # Keep docs/ — they ARE the data
 # Do NOT exclude *.md globally or docs/ will be empty

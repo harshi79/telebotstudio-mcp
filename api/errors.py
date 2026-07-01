@@ -82,7 +82,8 @@ class TbsConnectionError(TeleBotStudioError):
         return "connection_error"
 
 
-# Backward-compatible alias (DO NOT use in new code)
-# Intentionally prefixed with "Tbs" to avoid shadowing Python's builtin ConnectionError.
-# This alias exists solely for any external consumers; internal code uses TbsConnectionError.
-ConnectionError = TbsConnectionError  # noqa: A001
+# Backward-compatible alias — DEPRECATED.
+# This shadows the Python builtin ``ConnectionError``.  Do NOT use in new code;
+# use ``TbsConnectionError`` instead.  This alias will be removed in a future
+# major version (v3+).
+ConnectionError = TbsConnectionError

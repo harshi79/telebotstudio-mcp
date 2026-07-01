@@ -8,10 +8,14 @@ via the TeleBot Studio REST API v2.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from api.auth import validate_bot_id, validate_bot_token
-from api.client import TeleBotStudioClient
+from api.errors import ServerError, ValidationError
 from api.models import BotInfo
+
+if TYPE_CHECKING:
+    from api.client import TeleBotStudioClient
 
 logger = logging.getLogger("telebotstudio-mcp.api.bots")
 
@@ -43,7 +47,7 @@ class BotManager:
             return bot_info
 
         # If ok but result is a string, something unexpected happened
-        raise ValueError(f"Unexpected response format: {response.result}")
+        raise ValidationError(f"Unexpected response format: {response.result}")
 
     def delete(self, bot_id: str) -> str:
         """
@@ -59,7 +63,7 @@ class BotManager:
             logger.info("Deleted bot: %s", bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to delete bot: {response.result}")
+        raise ServerError(f"Failed to delete bot: {response.result}")
 
     def update_token(self, bot_id: str, new_token: str) -> str:
         """
@@ -80,4 +84,4 @@ class BotManager:
             logger.info("Updated token for bot: %s", bot_id)
             return str(response.result)
 
-        raise ValueError(f"Failed to update bot token: {response.result}")
+        raise ServerError(f"Failed to update bot token: {response.result}")

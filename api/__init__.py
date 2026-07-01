@@ -5,15 +5,16 @@ Provides a typed, validated, retry-capable HTTP client for the
 TeleBot Studio REST API v2 with session-scoped credential management.
 """
 
+from api.client import TeleBotStudioClient
 from api.errors import (
-    TeleBotStudioError,
     AuthenticationError,
-    ResourceNotFoundError,
-    ValidationError,
+    ConnectionError,  # DEPRECATED: backward-compatible alias, shadows builtin
     RateLimitError,
+    ResourceNotFoundError,
     ServerError,
     TbsConnectionError,
-    ConnectionError,  # backward-compatible alias
+    TeleBotStudioError,
+    ValidationError,
 )
 from api.models import (
     ApiResponse,
@@ -21,20 +22,19 @@ from api.models import (
     CommandInfo,
 )
 from api.session import CredentialManager
-from api.client import TeleBotStudioClient
 
 __all__ = [
-    "TeleBotStudioError",
-    "AuthenticationError",
-    "ResourceNotFoundError",
-    "ValidationError",
-    "RateLimitError",
-    "ServerError",
-    "TbsConnectionError",
-    "ConnectionError",
     "ApiResponse",
+    "AuthenticationError",
     "BotInfo",
     "CommandInfo",
+    "ConnectionError",
     "CredentialManager",
+    "RateLimitError",
+    "ResourceNotFoundError",
+    "ServerError",
+    "TbsConnectionError",
     "TeleBotStudioClient",
+    "TeleBotStudioError",
+    "ValidationError",
 ]

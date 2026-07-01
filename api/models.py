@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from api.utils import mask_value
 
 # ---------------------------------------------------------------------------
 # Response Models
@@ -129,9 +130,9 @@ class PlanStep:
         # Build a safe copy of params — mask sensitive values
         safe_params = dict(self.params)
         if "bot_token" in safe_params:
-            safe_params["bot_token"] = _mask_value(safe_params["bot_token"])
+            safe_params["bot_token"] = mask_value(safe_params["bot_token"])
         if "new_token" in safe_params:
-            safe_params["new_token"] = _mask_value(safe_params["new_token"])
+            safe_params["new_token"] = mask_value(safe_params["new_token"])
         return {
             "action": self.action,
             "description": self.description,
@@ -192,14 +193,3 @@ class BatchResult:
             "results": [r.to_dict() for r in self.results],
         }
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _mask_value(value: str) -> str:
-    """Mask a sensitive value for safe display."""
-    if not isinstance(value, str) or len(value) <= 10:
-        return "***"
-    return f"{value[:5]}...{value[-5:]}"
