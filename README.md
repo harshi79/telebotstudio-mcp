@@ -18,9 +18,62 @@ A production-ready MCP server with two engines:
 1. **documentation search** — BM25-ranked search across official TeleBot Studio docs. Zero embeddings. Zero external APIs. Works offline.
 2. **bot management** — full REST API integration. Create, configure, and control your TeleBot Studio bots from any MCP-compatible AI client.
 
-[quick start](#quick-start) · [api credentials](#getting-your-telebotstudio-api-credentials) · [tools](#mcp-tools-26) · [architecture](#architecture) · [deployment](#deployment) · [security](#security--privacy)
+[getting started](#getting-started) · [installation](#local-installation) · [connecting](#connecting-to-ai-clients) · [credentials](#getting-your-telebotstudio-api-credentials) · [tools](#mcp-tools-26) · [architecture](#architecture) · [deployment](#deployment) · [troubleshooting](#troubleshooting)
 
 </div>
+
+---
+
+## getting started
+
+### what is this?
+
+TeleBot Studio MCP is a server that connects your AI assistant to two things at once: the official TeleBot Studio documentation and the TeleBot Studio REST API. It uses the Model Context Protocol (MCP), which is a standard way for AI tools to talk to external services.
+
+Once connected, your AI can answer questions about TeleBot Studio using the actual docs instead of guessing, and it can create bots, add commands, and manage your bots through the real API.
+
+### who should use it?
+
+- **TeleBot Studio users** who want an AI assistant that actually knows the platform instead of making things up
+- **Developers** building Telegram bots with TeleBot Studio who want to create and manage bots from their AI editor
+- **Teams** who want a shared, always-correct reference for TeleBot Studio inside their AI workflow
+- **Anyone** tired of AI responses that invent functions or describe APIs that don't exist
+
+You don't need to be an MCP expert. If you can install a Python package and edit a JSON config file, you can set this up.
+
+### what the documentation engine does
+
+The documentation engine takes every page of official TeleBot Studio documentation, breaks it into sections, and builds a search index using BM25 — a well-established ranking algorithm. When your AI asks a question, the server searches this index and returns the most relevant sections with their scores.
+
+Key points:
+
+- It works **offline** — no internet connection needed for documentation queries
+- It uses **BM25 ranking**, not embeddings, so results are deterministic and exact
+- It supports **scoped searches** — you can search specifically for code examples, API references, function definitions, library info, or error messages
+- If the answer isn't in the docs, it returns nothing — your AI won't invent answers
+
+### what the api engine does
+
+The API engine wraps the TeleBot Studio REST API v2 and exposes it as MCP tools. Your AI can:
+
+- Create and delete bots
+- Update bot tokens
+- Create, read, update, and delete bot commands
+- Start, stop, and restart bots
+- Deploy a complete bot in one operation (create → add commands → start)
+
+Every API call goes through the official REST API over HTTPS. The server never stores your credentials on disk — they live in memory for the duration of the session and are lost on restart.
+
+### what the ai agent does
+
+For multi-step operations like deploying a complete bot, the server includes an agent pipeline that breaks the task into ordered steps:
+
+1. **Planner** — decomposes the goal into discrete actions (create bot, add command, start bot)
+2. **Validator** — checks that credentials are set and parameters are valid before anything runs
+3. **Preview** — shows you what will happen, with sensitive values masked, and waits for your confirmation
+4. **Executor** — runs the steps one by one, continuing even if some fail, and reports per-step results
+
+This pipeline is what powers `tbs_deploy_bot`, `tbs_setup_commands`, and the batch tools.
 
 ---
 
@@ -62,70 +115,235 @@ If your client supports the Model Context Protocol, it should work out of the bo
 
 ## quick start
 
-### prerequisites
-
-- Python 3.9+
-- pip
-- A [TeleBot Studio](https://telebotstudio.com) account (for API tools — documentation tools work without one)
-
-### install
+If you already know your way around MCP and just want the essentials:
 
 ```bash
 git clone https://github.com/harshi79/telebotstudio-mcp.git
 cd telebotstudio-mcp
 python -m venv venv
-source venv/bin/activate   # Windows: .\venv\Scripts\Activate.ps1
+source venv/bin/activate
 pip install -r requirements.txt
-```
-
-### verify the index
-
-```bash
 python build_index.py --validate
-```
-
-This builds the BM25 index from the `docs/` directory and checks all chunks for issues. You should see:
-
-```
-✓ All 730 chunks validated successfully.
-```
-
-### run the server
-
-```bash
-# STDIO mode (Claude Desktop, Cursor, Windsurf, etc.)
 python server.py
-
-# HTTP mode (remote clients, web dashboards, Render deployment)
-python server.py --transport http
 ```
 
-### connect to your AI client
+For detailed per-OS instructions, see [local installation](#local-installation). For client-specific setup, see [connecting to ai clients](#connecting-to-ai-clients).
 
-For **Claude Desktop**, add this to your config:
+---
 
-```json
-{
-  "mcpServers": {
-    "telebotstudio": {
-      "command": "python",
-      "args": ["/absolute/path/to/telebotstudio-mcp/server.py"]
-    }
-  }
-}
-```
+## local installation
 
-For **Cursor**, **Windsurf**, **Cline**, or **Continue** — set the command to `python`, the argument to the absolute path of `server.py`, and select STDIO transport.
+### linux
 
-### use the API tools
+1. **Clone the repository**
 
-Once the server is running and connected, call tools in this order:
+   ```bash
+   git clone https://github.com/harshi79/telebotstudio-mcp.git
+   ```
 
-1. `tbs_set_api_key` — authenticate with your TeleBot Studio API key
-2. `tbs_set_bot_id` — select which bot to operate on (or let `tbs_create_bot` auto-set it)
-3. Call any management tool — `tbs_create_command`, `tbs_start_bot`, `tbs_deploy_bot`, etc.
+   This downloads the project into a `telebotstudio-mcp` directory.
 
-Don't have an API key yet? See the next section.
+2. **Enter the project directory**
+
+   ```bash
+   cd telebotstudio-mcp
+   ```
+
+3. **Create a virtual environment**
+
+   ```bash
+   python3 -m venv venv
+   ```
+
+   This creates an isolated Python environment in a `venv/` folder so dependencies don't conflict with your system packages. You need Python 3.9 or newer.
+
+4. **Activate the virtual environment**
+
+   ```bash
+   source venv/bin/activate
+   ```
+
+   This puts the virtual environment's Python and pip on your PATH. You'll see `(venv)` appear in your shell prompt. You need to run this every time you open a new terminal.
+
+5. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   This installs FastMCP, rank-bm25, httpx, and the other packages the server needs.
+
+6. **Validate the documentation index**
+
+   ```bash
+   python build_index.py --validate
+   ```
+
+   This builds the BM25 search index from the markdown files in `docs/` and checks every chunk for issues. You should see:
+
+   ```
+   ✓ All 730 chunks validated successfully.
+   ```
+
+   If you see errors, check that the `docs/` directory contains `.md` files.
+
+7. **Run the server**
+
+   STDIO mode (for local AI clients like Claude Desktop and Cursor):
+
+   ```bash
+   python server.py
+   ```
+
+   HTTP mode (for remote clients or deployment):
+
+   ```bash
+   python server.py --transport http
+   ```
+
+   The server starts and is ready to accept connections. In HTTP mode, it listens on `http://0.0.0.0:8000/mcp` by default.
+
+### macos
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/harshi79/telebotstudio-mcp.git
+   ```
+
+2. **Enter the project directory**
+
+   ```bash
+   cd telebotstudio-mcp
+   ```
+
+3. **Create a virtual environment**
+
+   ```bash
+   python3 -m venv venv
+   ```
+
+   If `python3` isn't found, install Python from [python.org](https://python.org) or via Homebrew: `brew install python3`.
+
+4. **Activate the virtual environment**
+
+   ```bash
+   source venv/bin/activate
+   ```
+
+   You'll see `(venv)` in your prompt. Run this each time you open a new terminal.
+
+5. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+6. **Validate the documentation index**
+
+   ```bash
+   python build_index.py --validate
+   ```
+
+   You should see:
+
+   ```
+   ✓ All 730 chunks validated successfully.
+   ```
+
+7. **Run the server**
+
+   STDIO mode:
+
+   ```bash
+   python server.py
+   ```
+
+   HTTP mode:
+
+   ```bash
+   python server.py --transport http
+   ```
+
+### windows
+
+1. **Clone the repository**
+
+   Open PowerShell or Command Prompt and run:
+
+   ```powershell
+   git clone https://github.com/harshi79/telebotstudio-mcp.git
+   ```
+
+   If you don't have git, install it from [git-scm.com](https://git-scm.com).
+
+2. **Enter the project directory**
+
+   ```powershell
+   cd telebotstudio-mcp
+   ```
+
+3. **Create a virtual environment**
+
+   ```powershell
+   python -m venv venv
+   ```
+
+   If `python` isn't recognized, try `py` instead, or install Python from [python.org](https://python.org). Make sure to check "Add Python to PATH" during installation.
+
+4. **Activate the virtual environment**
+
+   PowerShell:
+
+   ```powershell
+   .\venv\Scripts\Activate.ps1
+   ```
+
+   Command Prompt:
+
+   ```cmd
+   .\venv\Scripts\activate.bat
+   ```
+
+   If PowerShell says running scripts is disabled, run this first:
+
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+   You'll see `(venv)` in your prompt. Run this each time you open a new terminal.
+
+5. **Install dependencies**
+
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+6. **Validate the documentation index**
+
+   ```powershell
+   python build_index.py --validate
+   ```
+
+   You should see:
+
+   ```
+   ✓ All 730 chunks validated successfully.
+   ```
+
+7. **Run the server**
+
+   STDIO mode:
+
+   ```powershell
+   python server.py
+   ```
+
+   HTTP mode:
+
+   ```powershell
+   python server.py --transport http
+   ```
 
 ---
 
@@ -181,6 +399,297 @@ After creating the bot:
 ![Bot ID location in TeleBot Studio dashboard](https://files.catbox.moe/xxhbqa.png)
 
 The Bot ID is required for almost every REST API operation — listing commands, creating commands, starting and stopping the bot, etc. Once you have it, pass it to `tbs_set_bot_id` so the server remembers it for the rest of your session.
+
+---
+
+## connecting to ai clients
+
+Once the server is installed, you need to tell your AI client how to reach it. The exact steps depend on which client you're using.
+
+Every client needs to know two things: the **command** to start the server (for STDIO mode) or the **URL** where the server is running (for HTTP mode). If you're running the server locally, use STDIO. If you've deployed it to Render, use HTTP.
+
+### claude desktop
+
+1. Open Claude Desktop
+2. Go to **Settings** → **Developer**
+3. Click **Edit Config**
+4. This opens a `claude_desktop_config.json` file. Add the server:
+
+   **Local server (STDIO):**
+
+   ```json
+   {
+     "mcpServers": {
+       "telebotstudio": {
+         "command": "python",
+         "args": ["/absolute/path/to/telebotstudio-mcp/server.py"]
+       }
+     }
+   }
+   ```
+
+   Replace `/absolute/path/to/` with the actual path to where you cloned the repository. On Windows, use the full path like `C:/Users/you/telebotstudio-mcp/server.py`.
+
+   **Render server (HTTP):**
+
+   ```json
+   {
+     "mcpServers": {
+       "telebotstudio": {
+         "url": "https://your-app.onrender.com/mcp"
+       }
+     }
+   }
+   ```
+
+5. Save the file and restart Claude Desktop
+6. Start a new conversation and look for the tools icon (🔧) — it should show the 26 TeleBot Studio tools
+
+**Common mistakes:**
+- Using a relative path instead of an absolute one — Claude Desktop needs the full path
+- Forgetting to restart Claude Desktop after editing the config
+- On Windows, using backslashes in the JSON — use forward slashes instead
+
+### cursor
+
+1. Open Cursor
+2. Go to **Settings** → **Features** → **MCP**
+3. Click **Add new MCP server**
+4. Fill in the details:
+
+   **Local server (STDIO):**
+   - Name: `telebotstudio`
+   - Type: `stdio`
+   - Command: `python`
+   - Args: `/absolute/path/to/telebotstudio-mcp/server.py`
+
+   **Render server (HTTP):**
+   - Name: `telebotstudio`
+   - Type: `sse` or `streamable-http`
+   - URL: `https://your-app.onrender.com/mcp`
+
+5. Save and wait for the tools to appear in the MCP panel
+
+**Common mistakes:**
+- Selecting the wrong transport type — local servers use `stdio`, remote servers use `sse` or `streamable-http`
+- Not using the full path to `server.py`
+
+### windsurf
+
+1. Open Windsurf
+2. Go to **Settings** → **MCP Servers**
+3. Click **Add Server**
+4. Fill in the details:
+
+   **Local server (STDIO):**
+   - Name: `telebotstudio`
+   - Command: `python`
+   - Args: `/absolute/path/to/telebotstudio-mcp/server.py`
+
+   **Render server (HTTP):**
+   - Name: `telebotstudio`
+   - URL: `https://your-app.onrender.com/mcp`
+
+5. Save and restart Windsurf if the tools don't appear immediately
+
+**Common mistakes:**
+- Using `python3` instead of `python` — Windsurf may not find the right binary depending on your system
+
+### chatgpt
+
+1. Open ChatGPT
+2. Go to **Settings** → **Connectors** or **MCP Servers**
+3. Click **Add connector**
+4. Enter the server URL:
+
+   **Render server (HTTP):**
+   - URL: `https://your-app.onrender.com/mcp`
+
+   ChatGPT currently supports HTTP-based MCP connections. If you're running locally, you'll need to deploy the server to Render or another host first, then point ChatGPT to the public URL.
+
+5. Save and start a new conversation to verify the tools are available
+
+**Common mistakes:**
+- Trying to use a `localhost` URL — ChatGPT can't reach your local machine. Use a publicly deployed server instead.
+
+### visual studio code
+
+1. Install an MCP extension for VS Code (such as the official MCP extension or a community one)
+2. Open VS Code settings
+3. Find the MCP configuration section
+4. Add the server:
+
+   **Local server (STDIO):**
+
+   ```json
+   {
+     "mcp": {
+       "servers": {
+         "telebotstudio": {
+           "command": "python",
+           "args": ["/absolute/path/to/telebotstudio-mcp/server.py"]
+         }
+       }
+     }
+   }
+   ```
+
+   **Render server (HTTP):**
+
+   ```json
+   {
+     "mcp": {
+       "servers": {
+         "telebotstudio": {
+           "url": "https://your-app.onrender.com/mcp"
+         }
+       }
+     }
+   }
+   ```
+
+5. Reload VS Code to apply the changes
+
+**Common mistakes:**
+- The config format varies by extension — check your extension's documentation for the exact key names
+
+### continue
+
+1. Open Continue settings — click the gear icon in the Continue panel
+2. Find the **MCP Servers** section
+3. Add a new server:
+
+   **Local server (STDIO):**
+
+   ```json
+   {
+     "mcpServers": {
+       "telebotstudio": {
+         "command": "python",
+         "args": ["/absolute/path/to/telebotstudio-mcp/server.py"]
+       }
+     }
+   }
+   ```
+
+   **Render server (HTTP):**
+
+   ```json
+   {
+     "mcpServers": {
+       "telebotstudio": {
+         "url": "https://your-app.onrender.com/mcp"
+       }
+     }
+   }
+   ```
+
+4. Save and restart Continue
+
+### cline
+
+1. Open the Cline panel in your editor
+2. Click the **MCP Servers** icon
+3. Click **Add server**
+4. Fill in the details:
+
+   **Local server (STDIO):**
+   - Name: `telebotstudio`
+   - Command: `python`
+   - Args: `/absolute/path/to/telebotstudio-mcp/server.py`
+
+   **Render server (HTTP):**
+   - Name: `telebotstudio`
+   - URL: `https://your-app.onrender.com/mcp`
+
+5. Save and verify the tools appear
+
+### verifying the connection
+
+After adding the server to your client, check that it's working:
+
+1. Start a new conversation
+2. Ask something like "search for broadcast in the TeleBot Studio docs"
+3. If the AI can call `search_docs`, the connection is working
+4. You can also ask "list all available documentation pages" — it should call `list_pages` and return the page names
+
+If the AI doesn't use the MCP tools, check the troubleshooting section below.
+
+---
+
+## first chat
+
+After connecting the MCP, start every new conversation with a prompt like this:
+
+```
+You are connected to the TeleBot Studio MCP.
+
+Always prefer the connected MCP instead of web search whenever the requested information exists inside the TeleBot Studio documentation.
+
+Before answering:
+1. search the documentation using the MCP.
+2. use the relevant documentation pages.
+3. if bot management is required, use the API tools.
+4. never invent undocumented functions.
+5. if something is not documented, explicitly say so.
+6. only use web search when the MCP cannot answer.
+```
+
+Why this helps: by default, many AI clients prefer web search over MCP tools, or they answer from training data without checking the connected tools at all. A prompt like this tells the AI to check the documentation first, use the API tools when needed, and be honest when something isn't covered. It dramatically reduces hallucinated functions and outdated information.
+
+You don't need to paste this every time if your client supports custom instructions or system prompts — add it there once and it applies to every conversation.
+
+---
+
+## example conversations
+
+These examples show how the AI uses the MCP tools in a real conversation.
+
+### example 1: documentation query
+
+**you:** how do broadcasts work?
+
+↓ AI calls `search_docs("broadcast")`
+
+↓ AI receives the relevant documentation chunks
+
+↓ AI reads the chunks and answers using the official docs
+
+**ai:** Broadcasts in TeleBot Studio let you send messages to all your bot subscribers at once. Here's how it works based on the documentation: [answer drawn from the actual docs, not guessed]
+
+### example 2: creating a command
+
+**you:** create a /start command that sends a welcome message
+
+↓ AI calls `tbs_set_api_key` (if not already set)
+
+↓ AI calls `tbs_set_bot_id` (if not already set)
+
+↓ AI calls `tbs_create_command(command="/start", code="...")`
+
+↓ API returns success
+
+**ai:** The `/start` command has been created on your bot. It will send a welcome message when users start the bot.
+
+### example 3: restarting a bot
+
+**you:** restart my bot
+
+↓ AI calls `tbs_restart_bot(bot_id="...")`
+
+↓ API returns success
+
+**ai:** Your bot has been restarted. The webhook has been removed and re-set.
+
+### example 4: searching documentation broadly
+
+**you:** find every page mentioning variables
+
+↓ AI calls `search_docs("variables")`
+
+↓ AI receives matching chunks across multiple pages
+
+**ai:** Here are the documentation pages that mention variables: [lists the pages with relevant sections]
 
 ---
 
@@ -253,6 +762,8 @@ The Bot ID is required for almost every REST API operation — listing commands,
 
 ### two-engine design
 
+The server runs two independent engines side by side, connected through the FastMCP framework:
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   FastMCP Server                     │
@@ -274,6 +785,12 @@ The Bot ID is required for almost every REST API operation — listing commands,
    STDIO / HTTP              HTTPS → api.telebotstudio.com
 ```
 
+The **documentation engine** is entirely self-contained. It loads markdown files at startup, builds a BM25 index, and answers search queries from memory. No network calls.
+
+The **bot management engine** makes real HTTPS requests to `api.telebotstudio.com` using the httpx library. It handles retries, timeouts, error mapping, and rate-limit headers automatically.
+
+Both engines share a **session manager** that stores your API key and Bot ID in memory, protected by thread locks. Nothing is written to disk.
+
 ### agent pipeline
 
 Agent tools (`tbs_deploy_bot`, `tbs_setup_commands`, batch operations) decompose complex goals into executable plans:
@@ -286,6 +803,13 @@ user goal  →  Planner (decompose into steps)
                               →  BatchResult (per-step success/failure)
 ```
 
+Here's what each stage does:
+
+- **Planner** takes a high-level goal like "deploy a bot with 3 commands" and breaks it into ordered steps: create bot, create command 1, create command 2, create command 3, start bot.
+- **Validator** checks that credentials are set and parameters are valid before anything runs. If the API key is missing, it stops here.
+- **Preview** generates a human-readable description of every step, masks sensitive values like bot tokens, and tells you whether confirmation is required. Nothing executes at this stage.
+- **Executor** runs the steps one by one. If a step fails, it records the failure and continues with the next step. The final result reports per-step success and failure.
+
 Each step runs independently. If step 3 of 5 fails, steps 4 and 5 still execute. The result reports exactly what succeeded and what didn't, so you always know the state of your bot.
 
 ### preview & confirmation
@@ -293,6 +817,22 @@ Each step runs independently. If step 3 of 5 fails, steps 4 and 5 still execute.
 Destructive operations — deleting a bot, deleting a command, updating a bot token — require `confirm=true`. When `confirm` is false or omitted, the tool returns a **preview**: a description of what *will* happen, without executing anything.
 
 This two-step pattern exists because AI assistants can misinterpret intent. "Remove the test bot" shouldn't accidentally delete a production bot. The preview gives you a chance to verify before anything irreversible happens.
+
+### how the documentation engine works
+
+1. **Loading** — the `MarkdownLoader` reads every `.md` file in `docs/` and splits each file into chunks at heading boundaries (H1, H2, H3). It never splits mid-paragraph or mid-code-block.
+2. **Tokenization** — each chunk is tokenized into lowercase unigrams and bigrams. This means `send_message` becomes the tokens `send`, `message`, and `send_message`, which helps match multi-word API names.
+3. **Indexing** — the tokens are fed into BM25Okapi, which computes term frequencies and document lengths for ranking.
+4. **Searching** — when a query comes in, it's tokenized the same way, and BM25 scores every chunk. The top-k results are returned with their scores.
+5. **Caching** — results are cached in an LRU cache (256 entries) so repeated queries return instantly.
+
+### how the api engine works
+
+1. **Authentication** — your API key is stored in the session manager. Every outgoing request gets an `Authorization: Bearer <key>` header.
+2. **Request** — the `TeleBotStudioClient` sends the request using httpx with a 30-second timeout.
+3. **Retry** — if the server returns 5xx or the request times out, the client retries up to 3 times with exponential backoff (1s, 2s, 4s). It does not retry 4xx errors.
+4. **Error mapping** — HTTP status codes are mapped to typed exceptions: 401 → `AuthenticationError`, 404 → `ResourceNotFoundError`, 400 → `ValidationError`, 429 → `RateLimitError`, 5xx → `ServerError`.
+5. **Response** — the response is parsed into an `ApiResponse` object with the result, status code, and rate-limit headers.
 
 ---
 
@@ -343,11 +883,15 @@ telebotstudio-mcp/
 python server.py
 ```
 
+The server communicates with the AI client through standard input and output. This is the mode you use with Claude Desktop, Cursor, and other local editors.
+
 **HTTP / streamable-http** — for remote clients and deployment:
 
 ```bash
 python server.py --transport http --host 0.0.0.0 --port 9000
 ```
+
+The server listens for HTTP requests and speaks the MCP protocol over streamable-http. This is the mode you use for Render deployment or any remote client.
 
 ### environment variables
 
@@ -360,6 +904,61 @@ python server.py --transport http --host 0.0.0.0 --port 9000
 ---
 
 ## deployment
+
+### local deployment
+
+Running the server on your own machine is the simplest option. It works well for personal use with local AI clients.
+
+**STDIO mode (recommended for local use):**
+
+```bash
+python server.py
+```
+
+No port or host configuration needed. The AI client starts and stops the server automatically through the MCP protocol.
+
+**HTTP mode (for local testing or LAN access):**
+
+```bash
+python server.py --transport http --host 127.0.0.1 --port 8000
+```
+
+This starts the server on port 8000. The MCP endpoint is at `http://127.0.0.1:8000/mcp` and the health check is at `http://127.0.0.1:8000/health`.
+
+Use `0.0.0.0` as the host if you want other machines on your network to reach the server.
+
+### render deployment
+
+Deploying to Render lets you use the server from any HTTP-based client without running anything locally.
+
+1. **Create a Render account** at [render.com](https://render.com)
+
+2. **Create a new Web Service**
+   - Click **New +** → **Web Service**
+   - Connect your GitHub repository (or fork this one)
+
+3. **Configure the build**
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `python server.py --transport http`
+   - Environment: `Python 3`
+
+4. **Set environment variables** (optional)
+   - No custom env vars are required — Render provides `PORT` automatically
+
+5. **Deploy**
+   - Click **Create Web Service**
+   - Render builds and starts the server
+   - Once live, your MCP endpoint is at `https://your-app.onrender.com/mcp`
+   - The health check is at `https://your-app.onrender.com/health`
+
+6. **Configure your AI client**
+   - Use the Render URL as the server address in your client's MCP settings
+   - Select `sse` or `streamable-http` as the transport
+
+**Notes on Render:**
+- Free-tier services spin down after 15 minutes of inactivity. The first request after a cold start takes a few seconds.
+- You can use UptimeRobot to ping `/health` periodically and keep the service awake.
+- Credentials are lost when the service restarts — this is by design.
 
 ### docker
 
@@ -375,14 +974,6 @@ The Dockerfile does not hardcode a port — it reads the `PORT` environment vari
 ```bash
 docker run -p 9000:9000 -e PORT=9000 telebotstudio-mcp
 ```
-
-### render.com
-
-1. Create a new **Web Service** on Render
-2. Connect your GitHub repository
-3. Build Command: `pip install -r requirements.txt`
-4. Start Command: `python server.py --transport http`
-5. Render auto-assigns the `PORT` environment variable — the server picks it up
 
 ### health check
 
@@ -405,13 +996,174 @@ These are reflected in the code and tested against production.
 
 ## security & privacy
 
+### how credentials are stored
+
+When you call `tbs_set_api_key` or `tbs_set_bot_id`, the values are stored in a Python class called `CredentialManager`. This class holds credentials in regular Python variables — nothing is written to the filesystem, nothing goes into a database, nothing appears in log files.
+
+The storage works like this:
+
+- **STDIO mode (single user):** credentials are stored as class-level variables. There's only one session, so one set of credentials.
+- **HTTP mode (potentially multi-user):** credentials are stored in a per-session dictionary, keyed by a session ID stored in thread-local storage. Each thread (each HTTP request) can have its own session with its own credentials.
+
+All access to the credential store is protected by a `threading.Lock`, so concurrent requests can't corrupt each other's data.
+
+### session-based storage
+
+Credentials are tied to the lifetime of the server process. As long as the server is running, your API key and Bot ID remain available. When the server stops — whether you kill it, it crashes, or the hosting platform restarts it — the credentials are gone.
+
+This is intentional. Storing secrets in config files or on disk creates risks: they can be committed to git, leaked in logs, or accessed by anyone with filesystem access. Memory-only storage eliminates all of those vectors.
+
+The tradeoff is that you need to re-authenticate after every restart. In practice, this means calling `tbs_set_api_key` once at the start of a new session.
+
+### why credentials disappear after restart
+
+Python variables exist in the process's memory. When the process exits, the operating system reclaims that memory and everything in it is gone. There is no mechanism to persist credentials across restarts, and that's by design — it prevents secrets from lingering on disk or in swap space.
+
+If you need credentials to survive restarts, that's the responsibility of your AI client, not the MCP server. Some clients can be configured to re-send credentials automatically at the start of each session.
+
+### other security details
+
 - **no telemetry** — zero analytics, tracking, or phone-home
-- **credentials in memory only** — API keys and bot tokens are stored in memory and lost on restart. Never persisted to disk, never logged in cleartext
 - **token masking** — bot tokens and API keys are masked in all log messages and preview responses (e.g. `tbs_1...xyz`)
 - **preview before destructive** — delete and update operations require explicit `confirm=true`. Default is preview-only
 - **input validation** — all inputs are validated before API calls (token format, bot ID format, command name length, code length)
 - **thread-safe sessions** — credential manager uses thread-local storage and locks for HTTP transport safety
 - **offline docs** — documentation search works without any network connection. API tools require internet to reach `api.telebotstudio.com`
+
+---
+
+## troubleshooting
+
+### mcp not being used
+
+The AI answers from its training data instead of calling the MCP tools.
+
+**Why it happens:** Most AI clients default to answering from training data. They don't automatically prefer MCP tools unless you tell them to.
+
+**How to fix:**
+- Add the recommended system prompt from the [first chat](#first-chat) section
+- Explicitly ask the AI to use the MCP: "search the TeleBot Studio docs for..."
+- Check that the server is connected in your client's MCP settings
+
+### ai prefers web search
+
+The AI does a web search instead of using the MCP documentation tools.
+
+**Why it happens:** Some clients prioritize web search results over MCP tool calls, especially for informational queries.
+
+**How to fix:**
+- Use the system prompt from [first chat](#first-chat) — it explicitly tells the AI to prefer MCP over web search
+- Rephrase your question to be more specific: "use the MCP to search the TeleBot Studio documentation for..."
+
+### invalid api key
+
+The AI returns an `AuthenticationError` when trying to use API tools.
+
+**Why it happens:** The API key is missing, incorrect, or has been regenerated on the TeleBot Studio dashboard.
+
+**How to fix:**
+- Call `tbs_credential_status` to check if an API key is set
+- Call `tbs_set_api_key` with the correct key from your TeleBot Studio Settings → API Access page
+- If you recently regenerated your key, make sure you're using the new one
+
+### invalid bot id
+
+The AI returns a `ValidationError` or `ResourceNotFoundError` mentioning the bot ID.
+
+**Why it happens:** The bot ID doesn't exist, doesn't belong to your account, or isn't a number.
+
+**How to fix:**
+- Verify the bot ID in TeleBot Studio: ☰ → My Bots → select bot → Bot Settings
+- Call `tbs_set_bot_id` with the correct numeric ID
+- Make sure you're using the Bot ID (a number), not the bot username
+
+### render sleeping
+
+Your Render-hosted server takes a long time to respond on the first request.
+
+**Why it happens:** Render's free tier puts services to sleep after 15 minutes of inactivity. The first request after a cold start needs to wait for the service to boot.
+
+**How to fix:**
+- Use [UptimeRobot](https://uptimerobot.com) to ping `https://your-app.onrender.com/health` every 5 minutes
+- This keeps the service awake and avoids cold starts
+- Alternatively, upgrade to a paid Render plan that doesn't spin down
+
+### connection refused
+
+The AI client can't connect to the server.
+
+**Why it happens:** The server isn't running, or it's running on a different host/port than the client expects.
+
+**How to fix:**
+- Make sure the server is running: `python server.py` for STDIO, `python server.py --transport http` for HTTP
+- For HTTP mode, verify the host and port match your client's configuration
+- Check that no firewall is blocking the connection
+- If using Render, make sure the service is deployed and the URL is correct
+
+### http 401
+
+API calls return a 401 Unauthorized error.
+
+**Why it happens:** The API key is invalid, expired, or not set.
+
+**How to fix:**
+- Call `tbs_set_api_key` with a valid key
+- If the key was working before, it may have been regenerated — check the TeleBot Studio dashboard
+
+### http 404
+
+API calls return a 404 Not Found error.
+
+**Why it happens:** The bot ID doesn't exist or doesn't belong to your account.
+
+**How to fix:**
+- Verify the bot ID in the TeleBot Studio dashboard
+- Make sure you're using the correct bot ID — it's a numeric string, not the bot username
+
+### timeout
+
+API calls take too long and time out.
+
+**Why it happens:** The TeleBot Studio API is slow to respond, or your internet connection is unstable. The default timeout is 30 seconds.
+
+**How to fix:**
+- Retry the request — transient timeouts can happen
+- If the problem persists, check your internet connection
+- Check the TeleBot Studio status page for any ongoing incidents
+
+### server offline
+
+The server isn't responding at all.
+
+**Why it happens:** The process crashed or was never started.
+
+**How to fix:**
+- For local deployment: check that `python server.py` is still running
+- For Render: check the Render dashboard for deployment status and logs
+- Use the `/health` endpoint to verify: `curl https://your-app.onrender.com/health`
+
+### documentation not found
+
+Search queries return "No matching documentation found" for topics that should exist.
+
+**Why it happens:** The search query doesn't match the way the documentation is written, or the `docs/` directory is empty.
+
+**How to fix:**
+- Try different search terms — use the exact function name or keyword from the docs
+- Call `list_pages` to see what documentation pages are available
+- Call `get_page` with a specific page name to retrieve it directly
+- If no pages are listed, check that the `docs/` directory contains `.md` files
+
+---
+
+## best practices
+
+- **keep api keys private.** Never commit them to git, never paste them in chat, never hardcode them. Use `tbs_set_api_key` at runtime.
+- **never commit secrets.** Add any config files containing keys to `.gitignore`. This server stores nothing on disk, but your AI client might.
+- **use preview before destructive actions.** When the AI wants to delete a bot or update a token, let it run with `confirm=false` first. Read the preview, then confirm.
+- **validate generated code.** When the AI creates a command using `tbs_create_command`, review the code before deploying. AI-generated code can have bugs.
+- **keep documentation updated.** If TeleBot Studio adds new features, pull the latest docs into the `docs/` directory and restart the server. The index rebuilds automatically.
+- **regenerate compromised api keys.** If you suspect your key was leaked, regenerate it immediately in TeleBot Studio Settings → API Access. The old key stops working right away.
 
 ---
 
@@ -459,7 +1211,7 @@ Yes. Once installed, the BM25 index and documentation are entirely local. The AP
 <details>
 <summary>can i deploy this on render / railway?</summary>
 
-Yes. Run `python server.py --transport http` and the server reads the `PORT` environment variable automatically.
+Yes. Run `python server.py --transport http` and the server reads the `PORT` environment variable automatically. See the [deployment](#deployment) section for step-by-step Render instructions.
 
 </details>
 
@@ -591,21 +1343,17 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ## credits
 
-this project is built on top of these excellent open-source projects:
-
-- **[FastMCP](https://github.com/jlowin/fastmcp)** — Python framework for building Model Context Protocol servers.
-- **[rank-bm25](https://github.com/dorianbrown/rank_bm25)** — Lightweight BM25 ranking implementation powering documentation search.
-- **[TeleBot Studio](https://telebotstudio.com)** — Official platform and REST API.
-- **[Model Context Protocol](https://modelcontextprotocol.io)** — Open protocol for connecting AI models to external tools.
+- **[FastMCP](https://github.com/jlowin/fastmcp)** — Python framework for building MCP servers
+- **[rank-bm25](https://github.com/dorianbrown/rank_bm25)** — Pure Python BM25 implementation
+- **[TeleBot Studio](https://telebotstudio.com)** — The platform and documentation
+- **[Model Context Protocol](https://modelcontextprotocol.io)** — Anthropic's standard for AI tool integration
 
 ---
 
 <div align="center">
 
-⭐ **Enjoying the project? Consider giving it a GitHub star.**
+⭐ If this project helps you, consider giving it a GitHub star.
 
-Made with ❤️ by **[YorichiiPrime](https://t.me/yorichiiprime)**
-
-Released under the **MIT License**.
+MIT License — see [LICENSE](LICENSE)
 
 </div>
