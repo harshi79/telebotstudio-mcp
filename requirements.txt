@@ -1,7 +1,9 @@
-fastmcp>=3.4.2
+# Core dependencies
+fastmcp>=2.0.0
 rank-bm25>=0.2.2
+
+# Documentation crawler utilities (optional — only needed for doc updates)
 beautifulsoup4>=4.12.3
 requests>=2.32.3
 lxml>=5.2.2
-httpx>=0.28.1
-markdown>=3.7
+markdownify>=0.14.1

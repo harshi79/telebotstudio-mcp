@@ -3,18 +3,33 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.egg-info/
+dist/
+build/
 
 # Virtual environments
 .venv/
 venv/
+env/
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # OS
 Thumbs.db
 .DS_Store
+desktop.ini
 
 # Logs
 *.log
+
+# Crawler output
+urls.txt
+
+# Environment
+.env
+.env.local
