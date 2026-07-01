@@ -606,7 +606,7 @@ this project is built on top of these excellent open-source projects:
 
 Made with ❤️ by **Harshi**
 
-Telegram: **@YOUR_USERNAME**
+Telegram: **@YorichiiPrime**
 
 Released under the **MIT License**.
 
