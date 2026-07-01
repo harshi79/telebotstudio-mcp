@@ -70,8 +70,8 @@ class LRUCache:
         self._cache: OrderedDict[str, list] = OrderedDict()
         self._maxsize = maxsize
         self._lock = threading.Lock()
-        self.hits = 0
-        self.misses = 0
+        self._hits = 0
+        self._misses = 0
 
     def _key(self, method: str, query: str, top_k: int) -> str:
         return f"{method}\x00{query}\x00{top_k}"
@@ -81,9 +81,9 @@ class LRUCache:
         with self._lock:
             if k in self._cache:
                 self._cache.move_to_end(k)
-                self.hits += 1
+                self._hits += 1
                 return self._cache[k]
-            self.misses += 1
+            self._misses += 1
             return None
 
     def put(self, method: str, query: str, top_k: int, results: list) -> None:
@@ -98,6 +98,16 @@ class LRUCache:
     @property
     def maxsize(self) -> int:
         return self._maxsize
+
+    @property
+    def hits(self) -> int:
+        with self._lock:
+            return self._hits
+
+    @property
+    def misses(self) -> int:
+        with self._lock:
+            return self._misses
 
 
 # ---------------------------------------------------------------------------

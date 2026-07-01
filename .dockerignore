@@ -1,14 +1,32 @@
-__pycache__/
+__pycache__
 *.pyc
 *.pyo
-venv/
-.venv/
-.git/
+*.pyd
+.git
 .gitignore
-*.md
-!docs/*.md
-.vscode/
-.idea/
+.venv
+venv
+env
+.env
+.env.local
+*.egg-info
+dist
+build
+.vscode
+.idea
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+desktop.ini
 *.log
 urls.txt
-.env
+
+# Dev scripts not needed in production image
+crawler.py
+download_docs.py
+build_index.py
+
+# Keep docs/ — they ARE the data
+# Do NOT exclude *.md globally or docs/ will be empty

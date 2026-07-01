@@ -2,18 +2,20 @@
 
 # TeleBot Studio MCP
 
-**Eliminate AI hallucinations. Ground your assistant in official TeleBot Studio documentation.**
+**Eliminate AI hallucinations. Let your assistant read official docs AND manage your bots.**
 
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 [![MCP Compatible](https://img.shields.io/badge/MCP-1.0_Compatible-8A2BE2?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://modelcontextprotocol.io)
 [![Powered by FastMCP](https://img.shields.io/badge/Powered%20by-FastMCP-005A9C?style=flat-square)](https://github.com/jlowin/fastmcp)
-[![100% Offline](https://img.shields.io/badge/Search-100%25_Offline-4CAF50?style=flat-square)]()
+[![26 MCP Tools](https://img.shields.io/badge/Tools-26-FF6F00?style=flat-square)]()
 [![No OpenAI Required](https://img.shields.io/badge/API-OpenAI_Not_Required-00c7b7?style=flat-square)]()
 
-*A production-ready Model Context Protocol (MCP) server indexing official documentation chunks via deterministic BM25 ranking. Zero embeddings. Zero external APIs.*
+*A production-ready Model Context Protocol (MCP) server with two superpowers:*
+1. **Documentation Search** — BM25-ranked search across official TeleBot Studio docs. Zero embeddings. Zero external APIs. 100% offline.
+2. **Bot Management** — Full REST API integration to create, configure, and control TeleBot Studio bots directly from your AI assistant.
 
-[Quick Start](#-quick-start) · [Configuration](#-configuration) · [Architecture](#-architecture--how-it-works) · [Performance](#-performance--benchmarks) · [Development](#-development-guide)
+[Quick Start](#-quick-start) · [Documentation Tools](#-documentation-search-tools-8) · [API Tools](#-bot-management-tools-18) · [Architecture](#-architecture--how-it-works) · [Deployment](#-deployment)
 
 </div>
 
@@ -21,173 +23,11 @@
 
 ## Why This Exists
 
-Large Language Models are powerful, but they hallucinate API specifics. When you ask an LLM how to use TeleBot Studio, it guesses based on outdated training data or conflates it with similar libraries. This causes **documentation drift**—the gap between what the AI says and what the official docs actually specify.
+Large Language Models are powerful, but they hallucinate API specifics. When you ask an LLM how to use TeleBot Studio, it guesses based on outdated training data. This causes **documentation drift** — the gap between what the AI says and what the official docs specify.
 
-The Model Context Protocol (MCP) fixes this by allowing AI assistants to dynamically query external tools at runtime.
-
-**TeleBot Studio MCP** acts as a strict, deterministic gateway to the *official* TeleBot Studio markdown files. If the answer isn't in the official documentation, the server returns nothing. The AI stops guessing, and you stop debugging phantom functions.
-
----
-
-## Demo
-
-### Example: Terminal Execution
-```bash
-$ python server.py --transport http --port 9000
-2025-06-26 10:00:00 | INFO     | telebotstudio-mcp | Starting TeleBot Studio MCP Server
-2025-06-26 10:00:00 | INFO     | telebotstudio-mcp | Transport: http
-2025-06-26 10:00:00 | INFO     | telebotstudio-mcp | Host: 0.0.0.0 | Port: 9000
-2025-06-26 10:00:00 | INFO     | telebotstudio-mcp | MCP endpoint: http://0.0.0.0:9000/mcp
-2025-06-26 10:00:00 | INFO     | loader | Found 18 markdown files in docs
-2025-06-26 10:00:00 | INFO     | loader | Created 730 total chunks
-2025-06-26 10:00:00 | INFO     | search | Building BM25 index with 730 chunks (unigram + bigram tokenization)
-2025-06-26 10:00:00 | INFO     | search | BM25 index ready
-```
-
-### Example: MCP Tool Call
-```json
-{
-  "tool": "search_docs",
-  "arguments": {
-    "query": "how to send a message with inline keyboard"
-  }
-}
-```
-
-### Expected Output
-```json
-{
-  "results": [
-    {
-      "score": 14.321,
-      "source": "bot-features-and-functionalities.md",
-      "heading": "Inline Keyboards",
-      "heading_level": 2,
-      "content": "To send a message with an inline keyboard, pass an `InlineKeyboardMarkup` object to the `reply_markup` argument in `bot.send_message()`..."
-    }
-  ]
-}
-```
-
----
-
-## Comparison: Us vs. The Rest
-
-| Metric | Normal LLM | Generic RAG | Embedding Search | Vector DB (FAISS/Pinecone) | **TeleBot Studio MCP** |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Speed** | Slow (Generation) | Medium | Slow (Embedding calc) | Medium (Network/Disk IO) | **Fast (In-memory)** |
-| **Offline Capable** | Yes | Rarely | No (Local models) | Yes (FAISS) / No (Pinecone) | **100% Offline** |
-| **Accuracy (Exact Match)** | Low | Medium | Low (Semantic drift) | Low | **High (Lexical BM25)** |
-| **Cost** | High (Tokens) | High | High (OpenAI API) | Medium / High | **$0.00** |
-| **Setup Time** | 0 mins | Hours | Hours | Days | **Minutes** |
-| **Maintenance** | N/A | High (Chunking drift) | High (Model updates) | High (Infra management) | **Low (Update docs folder)** |
-
----
-
-## Performance & Benchmarks
-
-**Why BM25 is enough:** Vector databases shine across millions of documents with vague semantic queries. For a highly-technical API documentation corpus, developers search for exact function names, exact error codes, and specific class properties. BM25 mathematically outperforms semantic embeddings for exact-lexicon matching at this scale without the computational overhead.
-
-**Benchmarks (typical):**
-- Index build time: < 1 second for 150+ chunks
-- Search latency: < 10ms per query (in-memory BM25)
-- Memory footprint: < 50MB for the full index
-- Zero cold-start: Index is built once at server startup
-
----
-
-## Architecture & How It Works
-
-### System Architecture
-```mermaid
-graph TD
-    subgraph Data["Source Data"]
-        D[Official .md Docs]
-    end
-
-    subgraph Pipeline["In-Memory Pipeline"]
-        L[Markdown Loader] --> C[Heading-Aware Chunker]
-        C --> I[BM25 Indexer]
-    end
-
-    subgraph Server["FastMCP Server"]
-        T1[search_docs]
-        T2[get_page]
-        T3[list_pages]
-        T4[search_examples]
-        T5[search_api]
-        T6[search_library]
-        T7[search_functions]
-        T8[search_errors]
-    end
-
-    subgraph Transport["Transport Layer"]
-        STD[STDIO]
-        HTTP[HTTP / Streamable HTTP]
-    end
-
-    subgraph Clients["MCP Clients"]
-        Claude[Claude Desktop]
-        Cur[Cursor]
-        Wind[Windsurf]
-        Other[OpenHands / Cline / Continue]
-    end
-
-    D --> L
-    I --> T1
-    I --> T2
-    I --> T3
-    I --> T4
-    I --> T5
-    I --> T6
-    I --> T7
-    I --> T8
-
-    T1 --> STD
-    T2 --> STD
-    T3 --> STD
-    T4 --> STD
-    T5 --> STD
-    T6 --> STD
-    T7 --> STD
-    T8 --> STD
-    T1 --> HTTP
-    T2 --> HTTP
-    T3 --> HTTP
-    T4 --> HTTP
-    T5 --> HTTP
-    T6 --> HTTP
-    T7 --> HTTP
-    T8 --> HTTP
-
-    STD --> Claude
-    STD --> Cur
-    HTTP --> Wind
-    HTTP --> Other
-
-    style Data fill:#f9f9f9,stroke:#333,stroke-width:2px
-    style Pipeline fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style Server fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
-    style Transport fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style Clients fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-```
-
-### Request Sequence Diagram
-```mermaid
-sequenceDiagram
-    participant U as User / AI Assistant
-    participant M as FastMCP Server
-    participant B as BM25 Engine
-    participant C as Doc Chunks (Memory)
-
-    U->>M: Invoke tool: search_docs("handle callback_query")
-    M->>B: Execute BM25 rank query
-    B->>C: Scan chunks (Term Frequency / Inverse Doc Freq)
-    C-->>B: Return scored matches
-    B-->>M: Top results with scores
-    M-->>U: Formatted MCP Tool Response
-    Note over U: LLM uses chunks as strict context.<br>No hallucinations allowed.
-```
+**TeleBot Studio MCP** solves this two ways:
+- **Documentation tools** ground your AI in official docs. If the answer isn't there, the server returns nothing. No more phantom functions.
+- **API tools** let your AI *do things* — create bots, write commands, start/stop them — through the official TeleBot Studio REST API v2.
 
 ---
 
@@ -195,242 +35,286 @@ sequenceDiagram
 
 | Category | Capabilities |
 | :--- | :--- |
-| **📄 Parsing** | Markdown documentation loader, Heading-aware chunking (`#`, `##`, `###`) to preserve context boundaries. |
-| **🔍 Search** | BM25 search engine (`rank-bm25`), Unigram + bigram tokenization, Extremely fast local search, 100% Offline search, LRU caching for repeated queries. |
-| **⚡ Server** | Built on FastMCP, Native STDIO support, HTTP / Streamable HTTP support. |
-| **🔒 Privacy** | Official documentation only, No embeddings generated, No vector database, No OpenAI API required. |
-| **🏗️ Architecture** | Production-ready, Zero cold-start latency, Input validation, Structured JSON responses, Comprehensive error handling. |
+| **📄 Documentation** | BM25 search engine, Heading-aware chunking, Unigram + bigram tokenization, LRU caching, 100% offline search. |
+| **🤖 Bot Management** | Create/delete/update bots, Create/update/delete/list commands, Start/stop/restart bots, Batch operations, Agent pipeline. |
+| **🔒 Security** | Session-scoped credentials (never persisted), Token masking in logs/responses, Preview & confirmation for destructive ops. |
+| **⚡ Server** | Built on FastMCP, STDIO + HTTP/Streamable HTTP, `/health` endpoint for uptime monitoring, Thread-safe credential manager. |
+| **🏗️ Architecture** | Production-ready, Zero cold-start, Input validation, Structured JSON responses, Retry with exponential backoff. |
 
 ---
 
-## 🛠️ MCP Tools
+## 🛠️ MCP Tools (26 Total)
 
-This server exposes 8 specialized tools, intentionally split to allow AI agents to target specific documentation areas:
+### Documentation Search Tools (8)
 
-| Tool Name | Description |
+| Tool | Description |
 | :--- | :--- |
-| `search_docs(query, top_k)` | The primary tool. Full-text BM25 search across all chunks. Returns top ranked results with scores. |
-| `get_page(name)` | Retrieves the full, unchunked content of a specific documentation page by its exact filename. |
-| `list_pages()` | Returns a complete list of all available documentation pages, filenames, and total count. |
-| `search_examples(query, top_k)` | Scoped search targeting exclusively code examples and usage snippets. |
-| `search_api(query, top_k)` | Scoped search restricted to API references, endpoints, and configuration parameters. |
-| `search_library(query, top_k)` | Searches for library installations, imports, and third-party dependency information. |
-| `search_functions(query, top_k)` | Targets specific function definitions, signatures, and method explanations. |
-| `search_errors(query, top_k)` | Searches for error codes, exception handling, troubleshooting guides, and common pitfalls. |
+| `search_docs(query, top_k)` | Primary search. Full-text BM25 across all chunks. |
+| `get_page(name)` | Retrieve an entire documentation page by filename. |
+| `list_pages()` | List all available documentation pages. |
+| `search_examples(query, top_k)` | Scoped search for code examples and snippets. |
+| `search_api(query, top_k)` | Scoped search for API references and endpoints. |
+| `search_library(query, top_k)` | Scoped search for library/install info. |
+| `search_functions(query, top_k)` | Scoped search for function definitions and signatures. |
+| `search_errors(query, top_k)` | Scoped search for errors and troubleshooting. |
 
-All tools return structured JSON responses with `score`, `source`, `heading`, `heading_level`, and `content` fields.
+### Bot Management Tools (18)
+
+#### Credential Tools (3)
+| Tool | Description |
+| :--- | :--- |
+| `tbs_set_api_key(api_key)` | Set your TeleBot Studio API key (memory-only, never persisted). |
+| `tbs_set_bot_id(bot_id)` | Set the active Bot ID for the session. |
+| `tbs_credential_status()` | Check if credentials are set (key is masked). |
+
+#### Bot Management (3)
+| Tool | Description |
+| :--- | :--- |
+| `tbs_create_bot(bot_token)` | Create a new bot with a Telegram bot token. Auto-sets the bot ID. |
+| `tbs_delete_bot(bot_id, confirm)` | Soft-delete a bot. **Preview supported** — set `confirm=true` to execute. |
+| `tbs_update_bot_token(bot_id, new_token, confirm)` | Update a bot's token (bot restarts). **Preview supported.** |
+
+#### Command Management (5)
+| Tool | Description |
+| :--- | :--- |
+| `tbs_create_command(command, code, bot_id)` | Create a new command on a bot. |
+| `tbs_get_command(command_name, bot_id)` | Get command details by name. |
+| `tbs_update_command(command_name, code, bot_id, confirm)` | Update a command's code. **Preview supported.** |
+| `tbs_delete_command(command_name, bot_id, confirm)` | Delete a command. **Preview supported.** |
+| `tbs_list_commands(bot_id)` | List all commands for a bot. |
+
+#### Bot Control (3)
+| Tool | Description |
+| :--- | :--- |
+| `tbs_start_bot(bot_id)` | Start a bot (set webhook). |
+| `tbs_stop_bot(bot_id)` | Stop a bot (remove webhook). |
+| `tbs_restart_bot(bot_id)` | Restart a bot (stop + start). |
+
+#### Agent Tools (2)
+| Tool | Description |
+| :--- | :--- |
+| `tbs_deploy_bot(bot_token, commands_json, confirm)` | Complete deployment: create bot → add commands → start. |
+| `tbs_setup_commands(commands_json, bot_id, confirm)` | Bulk create commands on an existing bot. |
+
+#### Batch Tools (2)
+| Tool | Description |
+| :--- | :--- |
+| `tbs_batch_create_commands(commands_json, bot_id, confirm)` | Create multiple commands in sequence. |
+| `tbs_batch_delete_commands(command_names_json, bot_id, confirm)` | Delete multiple commands in sequence. **Preview supported.** |
 
 ---
 
-## 📁 Project Structure
-
-```text
-telebotstudio-mcp/
-├── docs/                # The official TeleBot Studio .md documentation files
-├── loader.py            # Markdown loader and heading-aware chunking logic
-├── search.py            # BM25 index builder and search execution engine
-├── server.py            # FastMCP server initialization, routing, and tool definitions
-├── build_index.py       # CLI tool to build, validate, and test the search index
-├── crawler.py           # (Utility) Web crawler for fetching fresh documentation
-├── download_docs.py     # (Utility) Script to download and save docs to the /docs folder
-├── Dockerfile           # Docker container definition for deployment
-├── requirements.txt     # Python dependencies (rank-bm25, fastmcp, etc.)
-├── LICENSE              # MIT License
-├── README.md            # You are here
-└── .gitignore           # Git ignore rules (venv, __pycache__, etc.)
-```
-
-<details>
-<summary><b>📖 Detailed File Explanations</b></summary>
-
-* **`docs/`**: Contains the raw `.md` files. This is the single source of truth for the knowledge base.
-* **`loader.py`**: Reads the markdown files and splits them into chunks based on headings (`#`, `##`, `###`). This ensures context is never arbitrarily broken in the middle of a thought.
-* **`search.py`**: Takes the chunks from `loader.py`, tokenizes them using unigrams and bigrams, builds the BM25 index in memory, and exposes the search functions. Includes LRU caching for repeated queries.
-* **`server.py`**: The entry point. Wraps the search functions into MCP Tools using FastMCP and handles STDIO/HTTP transport. Includes input validation and structured JSON responses.
-* **`build_index.py`**: A CLI diagnostic tool used to build the index, validate chunks, run test searches, and display statistics.
-* **`crawler.py`**: A helper script used during development to scrape the official TeleBot Studio website.
-* **`download_docs.py`**: Automates the process of running the crawler and saving the output into the `docs/` directory.
-* **`Dockerfile`**: Docker container definition for easy deployment to any container hosting platform.
-
-</details>
-
----
-
-## 📥 Installation
+## 🚀 Quick Start
 
 ### Prerequisites
-* Python 3.9 or higher
-* `pip` (Python package manager)
+* Python 3.9+
+* `pip` package manager
+* A [TeleBot Studio](https://telebotstudio.com) account (for API tools)
 
-### 1. Clone the Repository
+### 1. Clone & Install
 ```bash
 git clone https://github.com/harshi79/telebotstudio-mcp.git
 cd telebotstudio-mcp
-```
-
-### 2. Create a Virtual Environment
-**Windows (PowerShell):**
-```powershell
 python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
-
-**macOS / Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-```bash
+source venv/bin/activate  # Windows: .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 4. Verify Installation
+### 2. Verify
 ```bash
 python build_index.py --validate
 ```
+
+### 3. Run
+```bash
+# STDIO mode (Claude Desktop, Cursor, etc.)
+python server.py
+
+# HTTP mode (remote clients, web dashboards)
+python server.py --transport http
+```
+
+### 4. Use API Tools
+In your MCP client, call tools in this order:
+1. `tbs_set_api_key` — authenticate with your TeleBot Studio API key
+2. `tbs_set_bot_id` — select which bot to operate on (or let `tbs_create_bot` auto-set it)
+3. Call any management tool (e.g., `tbs_create_command`, `tbs_start_bot`)
 
 ---
 
 ## ⚙️ Configuration
 
-### Local Usage (STDIO & HTTP)
+### Transport Modes
 
-**STDIO mode** (Default for Claude, Cursor, etc.):
+**STDIO** (default — for Claude Desktop, Cursor, Windsurf):
 ```bash
 python server.py
 ```
 
-**HTTP mode** (For remote clients or web dashboards):
-```bash
-python server.py --transport http
-```
-
-**Custom Host & Port:**
+**HTTP / Streamable HTTP** (for remote clients):
 ```bash
 python server.py --transport http --host 0.0.0.0 --port 9000
 ```
 
-**Custom Docs Directory:**
-```bash
-python server.py --docs-dir /path/to/your/docs
-```
-
 **Environment Variables:**
-- `TBS_DOCS_DIR`: Override the default docs directory path
+- `TBS_DOCS_DIR`: Override the default docs directory
+- `HOST`: Default host for HTTP mode (default: `0.0.0.0`)
+- `PORT`: Default port for HTTP mode (default: `8000`)
 
 ### Claude Desktop
-Open Claude Desktop Settings -> Developer -> Edit Config. Add the following JSON:
-
+Add to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "telebotstudio-docs": {
+    "telebotstudio": {
       "command": "python",
-      "args": [
-        "C:\\ABSOLUTE\\PATH\\TO\\telebotstudio-mcp\\server.py"
-      ]
-    }
-  }
-}
-```
-> ⚠️ **Note for Windows users:** You must use the absolute path to `server.py` and ensure it points to the Python executable inside your virtual environment if necessary (e.g., `C:\\...\\venv\\Scripts\\python.exe`).
-
-### Cursor
-1. Open Cursor Settings -> MCP -> Add new MCP server.
-2. Set the type to **STDIO**.
-3. Set the command to `python` and the arguments to the absolute path of your `server.py` file.
-
-### Windsurf
-1. Open Windsurf Settings -> Features -> Model Context Protocol.
-2. Click "Add Server".
-3. Provide the name `telebotstudio-docs`, set the command to `python`, and add the absolute path to `server.py` as the argument.
-
-### Continue (.continuerc.json)
-```json
-{
-  "experimental": {
-    "mcp": {
-      "servers": {
-        "telebotstudio-docs": {
-          "command": "python",
-          "args": ["/ABSOLUTE/PATH/TO/telebotstudio-mcp/server.py"]
-        }
-      }
+      "args": ["/ABSOLUTE/PATH/TO/telebotstudio-mcp/server.py"]
     }
   }
 }
 ```
 
-### Cline
-1. Open Cline in VS Code.
-2. Open the MCP Settings panel.
-3. Add a new STDIO server with `python` as the command and the path to `server.py` as the argument.
+### Cursor / Windsurf / Cline / Continue
+Set the command to `python` and the argument to the absolute path of `server.py`. Select **STDIO** transport.
 
-### OpenHands
-In your OpenHands configuration, add the MCP server to the runtime environment variables or mount the directory and execute via standard terminal commands.
+---
+
+## 🏗️ Architecture & How It Works
+
+### Two-Engine Design
+```
+┌─────────────────────────────────────────────────┐
+│                 FastMCP Server                    │
+│                                                   │
+│  ┌──────────────────┐  ┌───────────────────────┐ │
+│  │  Documentation    │  │  Bot Management       │ │
+│  │  Engine (BM25)    │  │  Engine (REST API)    │ │
+│  │                   │  │                       │ │
+│  │  8 search tools   │  │  Planner → Validator  │ │
+│  │  100% offline     │  │  → Preview → Executor │ │
+│  │  In-memory index  │  │  18 API tools         │ │
+│  └──────────────────┘  └───────────────────────┘ │
+│                                                   │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Session Manager (thread-safe, memory-only)  │ │
+│  └──────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────┘
+         │                           │
+    STDIO / HTTP              HTTPS to api.telebotstudio.com
+```
+
+### Agent Pipeline (for deploy_bot, setup_commands, batch operations)
+```
+User Goal → Planner (decompose into steps)
+          → Validator (check credentials, params)
+          → Preview (show what will happen, mask secrets)
+          → [confirm=true] → Executor (run steps sequentially)
+                           → BatchResult (per-step success/failure)
+```
+
+### Preview & Confirmation
+Destructive operations (delete bot, delete command, update token) require `confirm=true`. When `confirm=false` (default), the tool returns a preview describing what *will* happen without executing anything. This two-step pattern prevents accidental data loss.
+
+---
+
+## 📁 Project Structure
+
+```
+telebotstudio-mcp/
+├── server.py            # Entry point — FastMCP server, doc tools, /health
+├── loader.py            # Markdown loader & heading-aware chunking
+├── search.py            # BM25 index builder & search engine
+├── api/
+│   ├── __init__.py      # Public API exports
+│   ├── auth.py          # Input validation (API key, bot token, command names)
+│   ├── client.py        # HTTP client with retry, timeout, error mapping
+│   ├── errors.py        # Typed exception hierarchy
+│   ├── models.py        # Request/response dataclasses
+│   ├── session.py       # Thread-safe credential manager
+│   ├── bots.py          # Bot management wrapper
+│   ├── commands.py      # Command management wrapper
+│   └── bot_control.py   # Start/stop/restart wrapper
+├── agent/
+│   ├── __init__.py      # Agent layer exports
+│   ├── planner.py       # Decompose goals into execution plans
+│   ├── validator.py     # Validate plans against session state
+│   ├── preview.py       # Generate human-readable plan previews
+│   └── executor.py      # Execute plans with rate-limit awareness
+├── tools/
+│   ├── __init__.py      # Tools package
+│   └── api_tools.py     # 18 MCP tool definitions
+├── docs/                # Official TeleBot Studio documentation (.md)
+├── build_index.py       # CLI diagnostic tool
+├── Dockerfile           # Container definition
+├── .dockerignore        # Docker build exclusions
+├── requirements.txt     # Python dependencies
+├── LICENSE              # MIT License
+└── README.md            # This file
+```
+
+---
+
+## 🚢 Deployment
 
 ### Docker
 ```bash
 docker build -t telebotstudio-mcp .
-docker run -p 9000:9000 telebotstudio-mcp
+docker run -p 8000:8000 telebotstudio-mcp
 ```
+The MCP endpoint is at `http://localhost:8000/mcp` and the health check at `http://localhost:8000/health`.
 
-The MCP endpoint will be available at `http://localhost:9000/mcp`.
-
-### Render.com (Deployable HTTP)
+### Render.com
 1. Create a new **Web Service** on Render.
 2. Connect your GitHub repository.
-3. Set the Build Command: `pip install -r requirements.txt`
-4. Set the Start Command: `python server.py --transport http --port $PORT`
-5. Render will automatically assign the `$PORT` variable.
+3. Build Command: `pip install -r requirements.txt`
+4. Start Command: `python server.py --transport http`
+5. Render auto-assigns the `PORT` environment variable.
 
----
-
-## 🧪 Testing with MCP Inspector
-
-The MCP Inspector is an official tool to test and debug MCP servers visually.
-
-1. Start your server in HTTP mode:
-   ```bash
-   python server.py --transport http --port 9000
-   ```
-2. Run the MCP Inspector via npx:
-   ```bash
-   npx @modelcontextprotocol/inspector
-   ```
-3. In the Inspector UI, connect to `http://localhost:9000/mcp`.
+### Health Check
+The `/health` endpoint returns `{"status": "ok"}` and is suitable for uptime monitoring (UptimeRobot, Render health checks, etc.). This endpoint is outside the MCP protocol and does not require authentication.
 
 ---
 
 ## 🛡️ Security & Privacy
 
-This project is built with a strict **Privacy-First** architecture:
-
-* 🔒 **No Telemetry:** Zero analytics, tracking, or phone-home mechanisms.
-* ☁️ **No Cloud Dependencies:** Does not reach out to the internet at runtime.
-* 🔑 **No API Keys Required:** Runs entirely without OpenAI, Anthropic, or third-party keys.
-* 📴 **Offline Capable:** Once installed, disconnect from the internet and it works flawlessly.
-* 🧠 **No Data Leakage:** Your queries and codebase context never leave your local machine.
-* 🛡️ **Input Sanitization:** All tool inputs are validated and sanitized (including path traversal prevention).
+* 🔒 **No Telemetry:** Zero analytics, tracking, or phone-home.
+* 🧠 **Credentials in Memory Only:** API keys and bot tokens are stored in memory and lost on restart. Never persisted to disk, never logged in cleartext.
+* 🛡️ **Token Masking:** Bot tokens and API keys are masked in all log messages and preview responses (`tbs_1...xyz`).
+* ✅ **Preview Before Destructive:** Delete and update operations require explicit `confirm=true`. Default is preview-only.
+* 🧹 **Input Validation:** All inputs are validated before API calls (token format, bot ID format, command name length, etc.).
+* 🔐 **Thread-Safe Sessions:** Credential manager uses thread-local storage and locks for HTTP transport safety.
+* 📴 **Offline Docs:** Documentation search works 100% offline — no internet required. API tools require internet to reach `api.telebotstudio.com`.
 
 ---
 
 ## 🧐 Design Decisions
 
 <details>
-<summary><b>Why no Vector Database, FAISS, or Embeddings?</b></summary>
+<summary><b>Why BM25 instead of vector embeddings for docs?</b></summary>
 
-For a small-to-medium, highly-technical documentation corpus, introducing a vector database (Pinecone, Chroma, Qdrant) or an embedding model (OpenAI `text-embedding-3-small`) is massive overengineering that introduces unnecessary friction:
+For a technical documentation corpus, users search for exact function names, error codes, and class properties. BM25 mathematically outperforms semantic embeddings for exact-lexicon matching at this scale, with zero cost, zero latency, and zero external dependencies.
 
-1. **Latency:** Generating embeddings requires an API call (OpenAI) or GPU inference (local models). BM25 searches the index in memory almost instantly.
-2. **Cost:** OpenAI embeddings cost money. BM25 costs $0.00.
-3. **Privacy:** Embedding APIs require sending your documentation to third parties. BM25 runs 100% locally and offline.
-4. **Dependencies:** Vector DBs require running separate services (Docker containers, background processes). BM25 requires only the `rank-bm25` Python package.
-5. **Accuracy:** For technical documentation, users search for exact function names, error codes, and specific class names (e.g., `TeleBot.send_message`). Lexical search (BM25) mathematically outperforms semantic search for exact-match queries.
+</details>
 
-**Conclusion:** BM25 is the mathematically optimal choice for small-to-medium, highly-technical documentation corpora.
+<details>
+<summary><b>Why session-scoped credentials instead of persistent config?</b></summary>
+
+Storing API keys in config files is a security risk — they could be committed to git, leaked in logs, or accessed by other processes. Session-scoped memory-only credentials are lost on restart, which is intentional: it forces re-authentication and prevents stale credentials from persisting.
+
+</details>
+
+<details>
+<summary><b>Why preview & confirmation for destructive ops?</b></summary>
+
+AI assistants can misinterpret user intent. A user saying "remove the test bot" shouldn't accidentally delete a production bot. The two-step preview→confirm pattern gives the user a chance to verify before irreversible actions.
+
+</details>
+
+<details>
+<summary><b>Why sync HTTP client instead of async?</b></summary>
+
+FastMCP tool handlers can be sync or async. We use sync `httpx.Client` for simplicity and reliability. The retry sleep logic is async-aware (uses `run_in_executor`) to avoid blocking the event loop under HTTP transport.
+
 </details>
 
 ---
@@ -438,130 +322,100 @@ For a small-to-medium, highly-technical documentation corpus, introducing a vect
 ## ❓ Frequently Asked Questions
 
 <details>
-<summary><b>Why no embeddings?</b></summary>
-Embeddings convert text to numerical vectors to capture "meaning." For API documentation, meaning is less important than *exact syntax*. Searching for `reply_markup=True` needs a lexical exact-match, which BM25 provides instantly without the overhead of neural networks.
-</details>
-
-<details>
-<summary><b>Why no FAISS or Pinecone?</b></summary>
-FAISS requires C++ compilation and memory mapping. Pinecone requires network latency and API keys. For a documentation corpus of this size, storing the index in raw Python memory takes minimal resources and loads near-instantly. External databases only add deployment friction.
-</details>
-
-<details>
-<summary><b>Does it work completely offline?</b></summary>
-Yes. Once dependencies are installed, you can unplug your router. The server, the BM25 index, and the documentation are 100% local.
+<summary><b>Does the documentation search work offline?</b></summary>
+Yes. Once installed, the BM25 index and documentation are 100% local. The API tools require internet to reach `api.telebotstudio.com`, but the documentation tools work without any network connection.
 </details>
 
 <details>
 <summary><b>Can I deploy this on Render / Railway?</b></summary>
-Yes. By running `python server.py --transport http --port $PORT`, it becomes a standard web service that any PaaS can deploy and expose to the public internet.
+Yes. Run `python server.py --transport http` and the server reads the `PORT` environment variable automatically.
 </details>
 
 <details>
-<summary><b>Does it support Claude?</b></summary>
-Yes. Claude Desktop was a primary design target via the Model Context Protocol. It works seamlessly.
+<summary><b>Is my API key safe?</b></summary>
+Your API key is stored in server memory only — never written to disk, never logged in cleartext. It is transmitted over HTTPS to `api.telebotstudio.com` and is lost when the server restarts. For multi-user HTTP deployments, see the session isolation note in `api/session.py`.
 </details>
 
 <details>
-<summary><b>Can I replace the docs with my own documentation?</b></summary>
-Currently, the chunker and loader are tuned for the TeleBot Studio documentation structure. However, the codebase is intentionally clean. Swapping the `/docs` folder and adjusting the loader is trivial. A generic "Doc-MCP" framework is on the roadmap.
+<summary><b>What happens if a batch operation partially fails?</b></summary>
+The executor runs each step independently. If step 3 of 5 fails, steps 4 and 5 still execute. The `BatchResult` reports per-step success/failure so you can see exactly what happened.
 </details>
 
 ---
 
 ## 🛠️ Development Guide
 
-Want to hack on this project? Here is how it works under the hood.
+### How to Add a New API Endpoint Wrapper
 
-### How Chunking Works
-We do not use arbitrary character counts (e.g., "split every 500 tokens"). Arbitrary splits destroy context. Instead, `loader.py` parses the AST of the Markdown file and splits exclusively on headings (`#`, `##`, `###`). This guarantees every chunk contains a complete, self-contained thought or API definition. Code fences are respected so headings inside code blocks are not treated as chunk boundaries.
+The architecture is designed for extensibility. To add support for a new API endpoint:
 
-### How Search Works
-1. Chunks are tokenized into lowercase unigrams and bigrams.
-2. `rank-bm25` calculates Term Frequency (how often a word appears in a chunk) and Inverse Document Frequency (how rare the word is across all chunks).
-3. When queried, scores are summed and sorted descending.
-4. Scoped searches (examples, API, library, functions, errors) pre-filter chunks by category keywords and boost chunks whose titles match the scope.
+1. Add request/response models in `api/models.py`
+2. Add a method to the appropriate manager (`api/bots.py`, `api/commands.py`, or `api/bot_control.py`)
+3. Add a tool function in `tools/api_tools.py` with the `@mcp.tool` decorator
+4. If it's destructive, add preview support with `confirm` parameter
+5. If it's a multi-step operation, add a planner method in `agent/planner.py`
 
-### How to Add Docs
-1. Delete the contents of `/docs`.
-2. Add your new `.md` files.
-3. Restart the server. The index rebuilds automatically on boot.
-
-### How to Add Tools
-1. Open `server.py`.
-2. Define a new Python function.
-3. Use the `@mcp.tool` decorator from FastMCP.
-4. Call the necessary functions from `search.py`.
+### How to Add Documentation
+1. Add `.md` files to the `docs/` directory.
+2. Restart the server. The BM25 index rebuilds automatically.
 
 ### Coding Style
-We enforce standard PEP 8. Type hinting is preferred but not strictly enforced for scripts. Keep functions pure where possible.
+PEP 8 with type hints. `from __future__ import annotations` in every file. Keep functions pure where possible.
 
 ---
 
 ## 🗺️ Roadmap
 
-### Current (v0.1)
-- [x] Core BM25 search engine integration
-- [x] FastMCP server implementation
-- [x] STDIO transport
-- [x] HTTP / Streamable HTTP transport
-- [x] Heading-aware markdown chunking
-- [x] 8 specialized documentation tools
-- [x] LRU caching for repeated identical queries
-- [x] Input validation and error handling
-- [x] Structured JSON responses with scores
-- [x] Docker container support
-- [x] Index build and validation CLI tool
+### v0.2.0 (Current)
+- [x] 8 documentation search tools (BM25)
+- [x] 18 bot management API tools
+- [x] Session-scoped credential manager
+- [x] Agent pipeline (Planner → Validator → Preview → Executor)
+- [x] Preview & confirmation for destructive operations
+- [x] Batch operations with per-step error reporting
+- [x] Thread-safe credential storage
+- [x] Async-aware retry logic
+- [x] Docker + Render deployment
+- [x] `/health` endpoint
 
 ### Upcoming
-- [ ] Exact phrase match boosting (`"exact phrase"`)
-- [ ] Heading hierarchy boosting (H1 matches rank higher than H3)
-- [ ] Filename/Source path boosting
+- [ ] Connection pooling for API calls
+- [ ] FastMCP session middleware for per-client credential isolation
+- [ ] Exact phrase match boosting for search
+- [ ] Heading hierarchy boosting (H1 > H3)
 
 ### Future
-- [ ] Docker Compose setup for isolated deployment
 - [ ] GitHub Actions CI/CD pipeline
 - [ ] Pytest unit and integration test suite
-- [ ] 1-Click Render/Railway deployment templates
-
-### Long-term Vision
-- [ ] Abstract into a Generic Documentation MCP Framework (CLI tool to point at *any* repo/docs folder and generate an MCP server instantly).
+- [ ] Abstract into a Generic Documentation MCP Framework
 
 ---
 
 ## 📝 Changelog
 
-### v0.1.0 (Current)
-* Initial release.
-* Official markdown documentation parsed into heading-aware searchable chunks.
-* 8 highly-targeted MCP tools exposed with structured JSON responses.
-* Unigram + bigram tokenization for improved search accuracy.
-* LRU caching for repeated queries.
-* Support for STDIO and HTTP/Streamable HTTP FastMCP transports.
-* Input validation and path traversal prevention.
-* Docker container support.
-* Index build and validation CLI (`build_index.py`).
+### v0.2.0
+* Added 18 TeleBot Studio API management tools.
+* Session-scoped, thread-safe credential manager.
+* Agent pipeline with Planner → Validator → Preview → Executor.
+* Preview & confirmation for destructive operations.
+* Batch command create/delete.
+* Async-aware retry with exponential backoff.
+* Token masking in logs and responses.
+* Updated README with Phase 2 documentation.
+
+### v0.1.0
+* Initial release: 8 documentation search tools.
+* BM25 ranking with unigram + bigram tokenization.
+* LRU caching, input validation, path traversal prevention.
+* STDIO and HTTP/Streamable HTTP transports.
+* Docker support, `/health` endpoint.
 
 ---
 
 ## 🤝 Contributing
 
-We love our contributors! This is an open-source project built for the community.
-
-```mermaid
-graph LR
-    F[Fork Repo] --> B[Create Feature Branch]
-    B --> C[Write Code & Tests]
-    C --> P[Push to Fork]
-    P --> R[Open Pull Request]
-    R --> M[Code Review & Merge]
-
-    style F fill:#f1f8e9,stroke:#4caf50,stroke-width:2px
-    style M fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
-```
-
 1. Fork the repository.
-2. Create a feature branch (`git checkout -b feature/amazing-search-feature`).
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
 3. Ensure your code passes basic linting.
 4. Write a clear, descriptive commit message.
 5. Open a Pull Request against the `main` branch.
@@ -570,23 +424,10 @@ graph LR
 
 ## 🙏 Credits
 
-This project stands on the shoulders of open-source giants:
-* **[FastMCP](https://github.com/jlowin/fastmcp)** - The incredible Python framework that makes building MCP servers trivial.
-* **[rank-bm25](https://github.com/dorianbrown/rank_bm25)** - A pure Python implementation of BM25.
-* **[TeleBot Studio Documentation](https://telebot.studio)** - The official documentation team for maintaining the source of truth.
-* **[Model Context Protocol](https://modelcontextprotocol.io)** - Anthropic's groundbreaking standard for AI tool integration.
-
----
-
-## 📈 Star History
-
-<a href="https://star-history.com/#harshi79/telebotstudio-mcp&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=harshi79/telebotstudio-mcp&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=harshi79/telebotstudio-mcp&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=harshi79/telebotstudio-mcp&type=Date" />
- </picture>
-</a>
+* **[FastMCP](https://github.com/jlowin/fastmcp)** — Python framework for building MCP servers.
+* **[rank-bm25](https://github.com/dorianbrown/rank_bm25)** — Pure Python BM25 implementation.
+* **[TeleBot Studio](https://telebotstudio.com)** — The platform and documentation.
+* **[Model Context Protocol](https://modelcontextprotocol.io)** — Anthropic's standard for AI tool integration.
 
 ---
 

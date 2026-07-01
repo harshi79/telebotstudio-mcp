@@ -33,6 +33,7 @@ from starlette.responses import JSONResponse, Response
 
 from loader import Chunk, MarkdownLoader
 from search import SearchEngine
+from tools.api_tools import register_api_tools
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -105,12 +106,19 @@ def build_engine(docs_dir: str = DOCS_DIR) -> SearchEngine:
 mcp = FastMCP(
     name="TeleBot Studio MCP",
     instructions=(
-        "Official TeleBot Studio documentation server. "
-        "Always answer using the official documentation. "
+        "Official TeleBot Studio documentation & API server. "
+        "Two categories of tools are available:\n\n"
+        "1. DOCUMENTATION SEARCH (8 tools): Always answer using official docs. "
         "Use search_docs for general queries, and scoped tools "
         "(search_examples, search_api, search_library, search_functions, "
         "search_errors) for targeted searches. Use get_page to retrieve "
-        "an entire documentation page, and list_pages to see all available pages."
+        "an entire documentation page, and list_pages to see all available pages.\n\n"
+        "2. API & BOT MANAGEMENT (18 tools): Manage TeleBot Studio bots and commands "
+        "via the REST API. Start with tbs_set_api_key to authenticate, then "
+        "tbs_set_bot_id to select a bot. Create/delete/update bots and commands, "
+        "start/stop/restart bots, or use high-level agent tools (tbs_deploy_bot, "
+        "tbs_setup_commands) for multi-step operations. Destructive operations "
+        "require confirm=True and return a preview when confirm=False."
     ),
 )
 
@@ -123,6 +131,9 @@ mcp = FastMCP(
 async def health_check(request: Request) -> Response:
     """Lightweight health endpoint for uptime monitoring tools."""
     return JSONResponse({"status": "ok"})
+
+# Register API action tools (18 new tools)
+register_api_tools(mcp)
 
 # Engine is initialized lazily so --docs-dir can take effect
 _engine: SearchEngine | None = None
