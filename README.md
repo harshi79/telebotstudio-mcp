@@ -18,7 +18,7 @@ A production-ready MCP server with two engines:
 1. **documentation search** — BM25-ranked search across official TeleBot Studio docs. Zero embeddings. Zero external APIs. Works offline.
 2. **bot management** — full REST API integration. Create, configure, and control your TeleBot Studio bots from any MCP-compatible AI client.
 
-[getting started](#getting-started) · [installation](#local-installation) · [connecting](#connecting-to-ai-clients) · [credentials](#getting-your-telebotstudio-api-credentials) · [tools](#mcp-tools-26) · [architecture](#architecture) · [deployment](#deployment) · [troubleshooting](#troubleshooting)
+[getting started](#getting-started) · [installation](#local-installation) · [connecting](#connecting-to-ai-clients) · [credentials](#getting-your-telebotstudio-api-credentials) · [ai in action](#ai-in-action) · [tools](#mcp-tools-26) · [architecture](#architecture) · [deployment](#deployment) · [troubleshooting](#troubleshooting)
 
 </div>
 
@@ -28,9 +28,14 @@ A production-ready MCP server with two engines:
 
 ### what is this?
 
-TeleBot Studio MCP is a server that connects your AI assistant to two things at once: the official TeleBot Studio documentation and the TeleBot Studio REST API. It uses the Model Context Protocol (MCP), which is a standard way for AI tools to talk to external services.
+LLMs hallucinate API specifics. When you ask about TeleBot Studio, they guess from stale training data — wrong function signatures, invented parameters, outdated patterns. This is **documentation drift**: the gap between what the AI says and what the docs actually specify.
 
-Once connected, your AI can answer questions about TeleBot Studio using the actual docs instead of guessing, and it can create bots, add commands, and manage your bots through the real API.
+TeleBot Studio MCP closes that gap two ways:
+
+- **documentation tools** ground your AI in official docs. If the answer isn't in the corpus, the server returns nothing — no phantom functions, no invented APIs.
+- **API tools** let your AI *do things* — create bots, write commands, start and stop them — through the official TeleBot Studio REST API v2.
+
+The result: an AI assistant that both *knows* the platform and can *act on it*.
 
 ### who should use it?
 
@@ -45,11 +50,9 @@ You don't need to be an MCP expert. If you can install a Python package and edit
 
 The documentation engine takes every page of official TeleBot Studio documentation, breaks it into sections, and builds a search index using BM25 — a well-established ranking algorithm. When your AI asks a question, the server searches this index and returns the most relevant sections with their scores.
 
-Key points:
-
-- It works **offline** — no internet connection needed for documentation queries
-- It uses **BM25 ranking**, not embeddings, so results are deterministic and exact
-- It supports **scoped searches** — you can search specifically for code examples, API references, function definitions, library info, or error messages
+- Works **offline** — no internet connection needed for documentation queries
+- Uses **BM25 ranking**, not embeddings — results are deterministic and exact
+- Supports **scoped searches** — code examples, API references, function definitions, library info, or error messages
 - If the answer isn't in the docs, it returns nothing — your AI won't invent answers
 
 ### what the api engine does
@@ -74,19 +77,6 @@ For multi-step operations like deploying a complete bot, the server includes an 
 4. **Executor** — runs the steps one by one, continuing even if some fail, and reports per-step results
 
 This pipeline is what powers `tbs_deploy_bot`, `tbs_setup_commands`, and the batch tools.
-
----
-
-## why this exists
-
-LLMs hallucinate API specifics. When you ask about TeleBot Studio, they guess based on stale training data — wrong function signatures, invented parameters, outdated patterns. This is **documentation drift**: the gap between what the AI says and what the docs actually specify.
-
-TeleBot Studio MCP closes that gap two ways:
-
-- **documentation tools** ground your AI in official docs. If the answer isn't in the corpus, the server returns nothing — no phantom functions, no invented APIs.
-- **API tools** let your AI *do things* — create bots, write commands, start and stop them — through the official TeleBot Studio REST API v2.
-
-The result: an AI assistant that both *knows* the platform and can *act on it*.
 
 ---
 
@@ -141,8 +131,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    git clone https://github.com/harshi79/telebotstudio-mcp.git
    ```
 
-   This downloads the project into a `telebotstudio-mcp` directory.
-
 2. **Enter the project directory**
 
    ```bash
@@ -155,7 +143,7 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    python3 -m venv venv
    ```
 
-   This creates an isolated Python environment in a `venv/` folder so dependencies don't conflict with your system packages. You need Python 3.9 or newer.
+   This creates an isolated Python environment so dependencies don't conflict with your system packages. You need Python 3.11 or newer.
 
 4. **Activate the virtual environment**
 
@@ -163,7 +151,7 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    source venv/bin/activate
    ```
 
-   This puts the virtual environment's Python and pip on your PATH. You'll see `(venv)` appear in your shell prompt. You need to run this every time you open a new terminal.
+   You'll see `(venv)` appear in your shell prompt. Run this every time you open a new terminal.
 
 5. **Install dependencies**
 
@@ -171,21 +159,17 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    pip install -r requirements.txt
    ```
 
-   This installs FastMCP, rank-bm25, httpx, and the other packages the server needs.
-
 6. **Validate the documentation index**
 
    ```bash
    python build_index.py --validate
    ```
 
-   This builds the BM25 search index from the markdown files in `docs/` and checks every chunk for issues. You should see:
+   You should see:
 
    ```
    ✓ All 730 chunks validated successfully.
    ```
-
-   If you see errors, check that the `docs/` directory contains `.md` files.
 
 7. **Run the server**
 
@@ -200,8 +184,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    ```bash
    python server.py --transport http
    ```
-
-   The server starts and is ready to accept connections. In HTTP mode, it listens on `http://0.0.0.0:8000/mcp` by default.
 
 ### macos
 
@@ -231,8 +213,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    source venv/bin/activate
    ```
 
-   You'll see `(venv)` in your prompt. Run this each time you open a new terminal.
-
 5. **Install dependencies**
 
    ```bash
@@ -243,12 +223,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
 
    ```bash
    python build_index.py --validate
-   ```
-
-   You should see:
-
-   ```
-   ✓ All 730 chunks validated successfully.
    ```
 
 7. **Run the server**
@@ -268,8 +242,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
 ### windows
 
 1. **Clone the repository**
-
-   Open PowerShell or Command Prompt and run:
 
    ```powershell
    git clone https://github.com/harshi79/telebotstudio-mcp.git
@@ -311,8 +283,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
    ```
 
-   You'll see `(venv)` in your prompt. Run this each time you open a new terminal.
-
 5. **Install dependencies**
 
    ```powershell
@@ -323,12 +293,6 @@ For detailed per-OS instructions, see [local installation](#local-installation).
 
    ```powershell
    python build_index.py --validate
-   ```
-
-   You should see:
-
-   ```
-   ✓ All 730 chunks validated successfully.
    ```
 
 7. **Run the server**
@@ -369,8 +333,6 @@ After logging in:
 4. Copy your API Key
 
 ![API Key location in TeleBot Studio settings](https://files.catbox.moe/v3br7w.png)
-
-A few things to keep in mind:
 
 - Your API key is a **secret**. Never commit it to git, never share it publicly, never hardcode it in your source.
 - It is only needed at runtime. This MCP server stores it **in memory only** — never written to disk, never logged in cleartext, and lost when the server restarts.
@@ -470,10 +432,6 @@ Every client needs to know two things: the **command** to start the server (for 
 
 5. Save and wait for the tools to appear in the MCP panel
 
-**Common mistakes:**
-- Selecting the wrong transport type — local servers use `stdio`, remote servers use `sse` or `streamable-http`
-- Not using the full path to `server.py`
-
 ### windsurf
 
 1. Open Windsurf
@@ -492,9 +450,6 @@ Every client needs to know two things: the **command** to start the server (for 
 
 5. Save and restart Windsurf if the tools don't appear immediately
 
-**Common mistakes:**
-- Using `python3` instead of `python` — Windsurf may not find the right binary depending on your system
-
 ### chatgpt
 
 1. Open ChatGPT
@@ -505,11 +460,11 @@ Every client needs to know two things: the **command** to start the server (for 
    **Render server (HTTP):**
    - URL: `https://your-app.onrender.com/mcp`
 
-   ChatGPT currently supports HTTP-based MCP connections. If you're running locally, you'll need to deploy the server to Render or another host first, then point ChatGPT to the public URL.
+   ChatGPT currently supports HTTP-based MCP connections. If you're running locally, you'll need to deploy the server to Render or another host first.
 
 5. Save and start a new conversation to verify the tools are available
 
-**Common mistakes:**
+**Common mistake:**
 - Trying to use a `localhost` URL — ChatGPT can't reach your local machine. Use a publicly deployed server instead.
 
 ### visual studio code
@@ -549,9 +504,6 @@ Every client needs to know two things: the **command** to start the server (for 
    ```
 
 5. Reload VS Code to apply the changes
-
-**Common mistakes:**
-- The config format varies by extension — check your extension's documentation for the exact key names
 
 ### continue
 
@@ -693,6 +645,36 @@ These examples show how the AI uses the MCP tools in a real conversation.
 
 ---
 
+## ai in action
+
+Screenshots from actual MCP usage — no mock data, no staging.
+
+### chatgpt
+
+<p align="center">
+<img src="https://files.catbox.moe/l8qg61.jpg" width="700" alt="ChatGPT connected to TeleBot Studio MCP — all 26 tools available" />
+</p>
+<p align="center"><em>Connection established — all 26 MCP tools available</em></p>
+
+<p align="center">
+<img src="https://files.catbox.moe/zadh4z.jpg" width="700" alt="ChatGPT grounded response drawn from official documentation" />
+</p>
+<p align="center"><em>Grounded response — answer sourced from the docs, not training data</em></p>
+
+### claude desktop
+
+<p align="center">
+<img src="https://files.catbox.moe/7i4np9.jpg" width="700" alt="Claude Desktop MCP tool call to the documentation engine" />
+</p>
+<p align="center"><em>Tool call — Claude queries the TeleBot Studio documentation engine</em></p>
+
+<p align="center">
+<img src="https://files.catbox.moe/35w8vp.jpg" width="700" alt="Claude Desktop accurate response grounded in official docs" />
+</p>
+<p align="center"><em>Grounded response — accurate answer from the documentation</em></p>
+
+---
+
 ## MCP tools (26)
 
 ### documentation search (8)
@@ -785,12 +767,6 @@ The server runs two independent engines side by side, connected through the Fast
    STDIO / HTTP              HTTPS → api.telebotstudio.com
 ```
 
-The **documentation engine** is entirely self-contained. It loads markdown files at startup, builds a BM25 index, and answers search queries from memory. No network calls.
-
-The **bot management engine** makes real HTTPS requests to `api.telebotstudio.com` using the httpx library. It handles retries, timeouts, error mapping, and rate-limit headers automatically.
-
-Both engines share a **session manager** that stores your API key and Bot ID in memory, protected by thread locks. Nothing is written to disk.
-
 ### agent pipeline
 
 Agent tools (`tbs_deploy_bot`, `tbs_setup_commands`, batch operations) decompose complex goals into executable plans:
@@ -803,14 +779,10 @@ user goal  →  Planner (decompose into steps)
                               →  BatchResult (per-step success/failure)
 ```
 
-Here's what each stage does:
-
-- **Planner** takes a high-level goal like "deploy a bot with 3 commands" and breaks it into ordered steps: create bot, create command 1, create command 2, create command 3, start bot.
-- **Validator** checks that credentials are set and parameters are valid before anything runs. If the API key is missing, it stops here.
-- **Preview** generates a human-readable description of every step, masks sensitive values like bot tokens, and tells you whether confirmation is required. Nothing executes at this stage.
-- **Executor** runs the steps one by one. If a step fails, it records the failure and continues with the next step. The final result reports per-step success and failure.
-
-Each step runs independently. If step 3 of 5 fails, steps 4 and 5 still execute. The result reports exactly what succeeded and what didn't, so you always know the state of your bot.
+- **Planner** takes a high-level goal and breaks it into ordered steps.
+- **Validator** checks that credentials are set and parameters are valid. If the API key is missing, it stops here.
+- **Preview** generates a human-readable description of every step, masks sensitive values, and tells you whether confirmation is required. Nothing executes at this stage.
+- **Executor** runs the steps one by one. If a step fails, it records the failure and continues. The final result reports per-step success and failure.
 
 ### preview & confirmation
 
@@ -818,21 +790,21 @@ Destructive operations — deleting a bot, deleting a command, updating a bot to
 
 This two-step pattern exists because AI assistants can misinterpret intent. "Remove the test bot" shouldn't accidentally delete a production bot. The preview gives you a chance to verify before anything irreversible happens.
 
-### how the documentation engine works
+### documentation engine internals
 
-1. **Loading** — the `MarkdownLoader` reads every `.md` file in `docs/` and splits each file into chunks at heading boundaries (H1, H2, H3). It never splits mid-paragraph or mid-code-block.
-2. **Tokenization** — each chunk is tokenized into lowercase unigrams and bigrams. This means `send_message` becomes the tokens `send`, `message`, and `send_message`, which helps match multi-word API names.
-3. **Indexing** — the tokens are fed into BM25Okapi, which computes term frequencies and document lengths for ranking.
-4. **Searching** — when a query comes in, it's tokenized the same way, and BM25 scores every chunk. The top-k results are returned with their scores.
+1. **Loading** — `MarkdownLoader` reads every `.md` file in `docs/` and splits each file into chunks at heading boundaries (H1, H2, H3). It never splits mid-paragraph or mid-code-block.
+2. **Tokenization** — each chunk is tokenized into lowercase unigrams and bigrams. `send_message` becomes `send`, `message`, and `send_message`, which helps match multi-word API names.
+3. **Indexing** — tokens are fed into BM25Okapi, which computes term frequencies and document lengths for ranking.
+4. **Searching** — queries are tokenized the same way, and BM25 scores every chunk. The top-k results are returned with their scores.
 5. **Caching** — results are cached in an LRU cache (256 entries) so repeated queries return instantly.
 
-### how the api engine works
+### api engine internals
 
 1. **Authentication** — your API key is stored in the session manager. Every outgoing request gets an `Authorization: Bearer <key>` header.
-2. **Request** — the `TeleBotStudioClient` sends the request using httpx with a 30-second timeout.
-3. **Retry** — if the server returns 5xx or the request times out, the client retries up to 3 times with exponential backoff (1s, 2s, 4s). It does not retry 4xx errors.
+2. **Request** — `TeleBotStudioClient` sends the request using httpx with a 30-second timeout.
+3. **Retry** — on 5xx or timeout, the client retries up to 3 times with exponential backoff (1s, 2s, 4s). It does not retry 4xx errors.
 4. **Error mapping** — HTTP status codes are mapped to typed exceptions: 401 → `AuthenticationError`, 404 → `ResourceNotFoundError`, 400 → `ValidationError`, 429 → `RateLimitError`, 5xx → `ServerError`.
-5. **Response** — the response is parsed into an `ApiResponse` object with the result, status code, and rate-limit headers.
+5. **Response** — parsed into an `ApiResponse` object with the result, status code, and rate-limit headers.
 
 ---
 
@@ -844,6 +816,8 @@ telebotstudio-mcp/
 ├── loader.py              markdown loader & heading-aware chunking
 ├── search.py              BM25 index builder & search engine
 ├── build_index.py         CLI diagnostic tool
+├── crawler.py             documentation crawler
+├── download_docs.py       documentation downloader
 ├── api/
 │   ├── __init__.py        public API exports
 │   ├── auth.py            input validation (API key, bot token, command names)
@@ -853,7 +827,8 @@ telebotstudio-mcp/
 │   ├── session.py         thread-safe credential manager
 │   ├── bots.py            bot management wrapper
 │   ├── commands.py        command management wrapper
-│   └── bot_control.py     start / stop / restart wrapper
+│   ├── bot_control.py     start / stop / restart wrapper
+│   └── utils.py           shared utilities (token masking)
 ├── agent/
 │   ├── __init__.py        agent layer exports
 │   ├── planner.py         decompose goals into execution plans
@@ -862,7 +837,15 @@ telebotstudio-mcp/
 │   └── executor.py        execute plans with rate-limit awareness
 ├── tools/
 │   ├── __init__.py
-│   └── api_tools.py       18 MCP tool definitions
+│   ├── api_tools.py       core API MCP tools
+│   ├── agent_tools.py     deploy & setup MCP tools
+│   ├── batch_tools.py     batch operation MCP tools
+│   ├── bot_tools.py       bot management MCP tools
+│   ├── command_tools.py   command management MCP tools
+│   ├── control_tools.py   bot control MCP tools
+│   ├── credential_tools.py credential MCP tools
+│   └── helpers.py         shared tool utilities
+├── tests/                 pytest suite (244 tests)
 ├── docs/                  official TeleBot Studio documentation (.md)
 ├── Dockerfile             container definition
 ├── .dockerignore          Docker build exclusions
@@ -923,7 +906,7 @@ No port or host configuration needed. The AI client starts and stops the server 
 python server.py --transport http --host 127.0.0.1 --port 8000
 ```
 
-This starts the server on port 8000. The MCP endpoint is at `http://127.0.0.1:8000/mcp` and the health check is at `http://127.0.0.1:8000/health`.
+The MCP endpoint is at `http://127.0.0.1:8000/mcp` and the health check is at `http://127.0.0.1:8000/health`.
 
 Use `0.0.0.0` as the host if you want other machines on your network to reach the server.
 
@@ -1000,8 +983,6 @@ These are reflected in the code and tested against production.
 
 When you call `tbs_set_api_key` or `tbs_set_bot_id`, the values are stored in a Python class called `CredentialManager`. This class holds credentials in regular Python variables — nothing is written to the filesystem, nothing goes into a database, nothing appears in log files.
 
-The storage works like this:
-
 - **STDIO mode (single user):** credentials are stored as class-level variables. There's only one session, so one set of credentials.
 - **HTTP mode (potentially multi-user):** credentials are stored in a per-session dictionary, keyed by a session ID stored in thread-local storage. Each thread (each HTTP request) can have its own session with its own credentials.
 
@@ -1009,15 +990,7 @@ All access to the credential store is protected by a `threading.Lock`, so concur
 
 ### session-based storage
 
-Credentials are tied to the lifetime of the server process. As long as the server is running, your API key and Bot ID remain available. When the server stops — whether you kill it, it crashes, or the hosting platform restarts it — the credentials are gone.
-
-This is intentional. Storing secrets in config files or on disk creates risks: they can be committed to git, leaked in logs, or accessed by anyone with filesystem access. Memory-only storage eliminates all of those vectors.
-
-The tradeoff is that you need to re-authenticate after every restart. In practice, this means calling `tbs_set_api_key` once at the start of a new session.
-
-### why credentials disappear after restart
-
-Python variables exist in the process's memory. When the process exits, the operating system reclaims that memory and everything in it is gone. There is no mechanism to persist credentials across restarts, and that's by design — it prevents secrets from lingering on disk or in swap space.
+Credentials are tied to the lifetime of the server process. As long as the server is running, your API key and Bot ID remain available. When the server stops — whether you kill it, it crashes, or the hosting platform restarts it — the credentials are gone. Python variables exist in the process's memory, and the operating system reclaims that memory on exit. There is no mechanism to persist credentials across restarts, and that's by design — it prevents secrets from lingering on disk or in swap space.
 
 If you need credentials to survive restarts, that's the responsibility of your AI client, not the MCP server. Some clients can be configured to re-send credentials automatically at the start of each session.
 
@@ -1262,7 +1235,7 @@ The architecture is designed for extensibility:
 
 1. Add request/response models in `api/models.py`
 2. Add a method to the appropriate manager (`api/bots.py`, `api/commands.py`, or `api/bot_control.py`)
-3. Add a tool function in `tools/api_tools.py` with the `@mcp.tool` decorator
+3. Add a tool function in the appropriate `tools/` module with the `@mcp.tool` decorator
 4. If it's destructive, add a `confirm` parameter with preview support
 5. If it's a multi-step operation, add a planner method in `agent/planner.py`
 
@@ -1279,7 +1252,7 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ## roadmap
 
-### current (v2.0.0)
+### current (v2.1.0)
 
 - [x] 8 documentation search tools (BM25)
 - [x] 18 bot management API tools
@@ -1292,6 +1265,9 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 - [x] Docker + Render deployment
 - [x] `/health` endpoint
 - [x] Live API validation against production
+- [x] GitHub Actions CI/CD pipeline
+- [x] Pytest test suite (244 tests)
+- [x] Ruff + mypy linting (zero issues)
 
 ### next
 
@@ -1302,13 +1278,23 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ### future
 
-- [x] GitHub Actions CI/CD pipeline
-- [x] Pytest unit and integration test suite (244 tests)
 - [ ] Abstract into a generic documentation MCP framework
 
 ---
 
 ## changelog
+
+### v2.1.0
+
+- Split `tools/api_tools.py` into modular files (agent_tools, batch_tools, bot_tools, command_tools, control_tools, credential_tools, helpers)
+- GitHub Actions CI/CD pipeline
+- Pytest test suite (244 tests)
+- Ruff + mypy compliance (zero issues)
+- Thread-safe LRUCache counters and session copy semantics
+- Async-aware rate-limit pause in executor
+- Bot token regex widened for test environments
+- `.dockerignore` rewritten for correct Docker builds
+- Open source maturity files (SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates, Dependabot)
 
 ### v2.0.0
 
@@ -1328,6 +1314,13 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 - LRU caching, input validation, path traversal prevention
 - STDIO and HTTP/streamable-http transports
 - Docker support, `/health` endpoint
+
+---
+
+## community
+
+[![Meet us on Telegram](https://img.shields.io/badge/Meet_us_on-Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/yorifederation)
+[![Made by solo dev yori](https://img.shields.io/badge/Made_by-Solo_Dev_Yori-FF6F00?style=for-the-badge)](https://t.me/yorichiiprime)
 
 ---
 
