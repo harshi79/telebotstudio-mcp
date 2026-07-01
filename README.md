@@ -9,13 +9,16 @@
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-8A2BE2?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://modelcontextprotocol.io)
 [![FastMCP](https://img.shields.io/badge/Powered_by-FastMCP-005A9C?style=flat-square)](https://github.com/jlowin/fastmcp)
 [![26 Tools](https://img.shields.io/badge/Tools-26-FF6F00?style=flat-square)]()
+[![Live API Validated](https://img.shields.io/badge/Live_API-Validated-2EA043?style=flat-square)]()
+
+Documentation Search · Official REST API · AI Agent Pipeline · 26 MCP Tools · Production Ready
 
 A production-ready MCP server with two engines:
 
 1. **documentation search** — BM25-ranked search across official TeleBot Studio docs. Zero embeddings. Zero external APIs. Works offline.
 2. **bot management** — full REST API integration. Create, configure, and control your TeleBot Studio bots from any MCP-compatible AI client.
 
-[quick start](#quick-start) · [getting api credentials](#getting-your-telebotstudio-api-credentials) · [tools](#mcp-tools-26) · [architecture](#architecture) · [deployment](#deployment) · [security](#security--privacy)
+[quick start](#quick-start) · [api credentials](#getting-your-telebotstudio-api-credentials) · [tools](#mcp-tools-26) · [architecture](#architecture) · [deployment](#deployment) · [security](#security--privacy)
 
 </div>
 
@@ -23,7 +26,7 @@ A production-ready MCP server with two engines:
 
 ## why this exists
 
-LLMs hallucinate API specifics. When you ask an LLM about TeleBot Studio, it guesses based on stale training data — wrong function signatures, invented parameters, outdated patterns. This is **documentation drift**: the gap between what the AI says and what the docs actually specify.
+LLMs hallucinate API specifics. When you ask about TeleBot Studio, they guess based on stale training data — wrong function signatures, invented parameters, outdated patterns. This is **documentation drift**: the gap between what the AI says and what the docs actually specify.
 
 TeleBot Studio MCP closes that gap two ways:
 
@@ -44,6 +47,16 @@ The result: an AI assistant that both *knows* the platform and can *act on it*.
 | **batch operations** | bulk create or delete commands with per-step success/failure reporting |
 | **safety** | preview-before-execute for destructive ops, session-scoped credentials (never persisted), token masking |
 | **server** | FastMCP, STDIO + HTTP/streamable-http transports, `/health` endpoint, thread-safe sessions, retry with backoff |
+
+---
+
+## supported clients
+
+Works with any MCP-compatible client. Tested with:
+
+Claude Desktop · Cursor · Windsurf · VS Code · ChatGPT · Continue · Cline
+
+If your client supports the Model Context Protocol, it should work out of the box.
 
 ---
 
@@ -71,7 +84,7 @@ pip install -r requirements.txt
 python build_index.py --validate
 ```
 
-This builds the BM25 index from the `docs/` directory and checks all chunks for issues. You should see something like:
+This builds the BM25 index from the `docs/` directory and checks all chunks for issues. You should see:
 
 ```
 ✓ All 730 chunks validated successfully.
@@ -142,7 +155,7 @@ After logging in:
 A few things to keep in mind:
 
 - Your API key is a **secret**. Never commit it to git, never share it publicly, never hardcode it in your source.
-- It is only needed at runtime. This MCP server stores it **in memory only** — it is never written to disk, never logged in cleartext, and is lost when the server restarts.
+- It is only needed at runtime. This MCP server stores it **in memory only** — never written to disk, never logged in cleartext, and lost when the server restarts.
 - If your key is compromised, you can regenerate it from the same Settings page.
 
 ### 3. create your bot
@@ -299,7 +312,7 @@ telebotstudio-mcp/
 │   ├── models.py          request/response dataclasses
 │   ├── session.py         thread-safe credential manager
 │   ├── bots.py            bot management wrapper
-│   ├── commands.py         command management wrapper
+│   ├── commands.py        command management wrapper
 │   └── bot_control.py     start / stop / restart wrapper
 ├── agent/
 │   ├── __init__.py        agent layer exports
@@ -374,6 +387,19 @@ docker run -p 9000:9000 -e PORT=9000 telebotstudio-mcp
 ### health check
 
 `GET /health` returns `{"status": "ok"}`. This endpoint lives outside the MCP protocol and requires no authentication. Suitable for UptimeRobot, Render health checks, or any uptime monitor.
+
+---
+
+## live api validation
+
+Every REST API endpoint in this project was verified against the live TeleBot Studio API. Where the official documentation diverged from actual API behavior, the implementation follows the live API — not the docs.
+
+Known discrepancies that were identified and handled:
+
+- The documented `GET` method for `/command/by-name` returns 405 — the live API accepts `POST` with a JSON body
+- The documented `GET /bots/{botid}/commands` endpoint is used for creating commands — the actual list endpoint is `GET /bots/{botid}/commands/list`
+
+These are reflected in the code and tested against production.
 
 ---
 
@@ -501,7 +527,7 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ## roadmap
 
-### current (v0.2.0)
+### current (v2.0.0)
 
 - [x] 8 documentation search tools (BM25)
 - [x] 18 bot management API tools
@@ -513,6 +539,7 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 - [x] Async-aware retry logic
 - [x] Docker + Render deployment
 - [x] `/health` endpoint
+- [x] Live API validation against production
 
 ### next
 
@@ -531,7 +558,7 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 ## changelog
 
-### v0.2.0
+### v2.0.0
 
 - 18 TeleBot Studio API management tools
 - Session-scoped, thread-safe credential manager
@@ -540,6 +567,7 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 - Batch command create/delete
 - Async-aware retry with exponential backoff
 - Token masking in logs and responses
+- Live API validation against production endpoints
 
 ### v0.1.0
 
@@ -572,8 +600,8 @@ PEP 8 with type hints. `from __future__ import annotations` in every file. Keep 
 
 <div align="center">
 
-MIT License — see [LICENSE](LICENSE)
+⭐ If this project helps you, consider giving it a GitHub star.
 
-grounding AI in reality, one chunk at a time
+MIT License — see [LICENSE](LICENSE)
 
 </div>
