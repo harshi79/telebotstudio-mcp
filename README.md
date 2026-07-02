@@ -168,7 +168,7 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    You should see:
 
    ```
-   ✓ All 730 chunks validated successfully.
+   ✓ All 918 chunks validated successfully.
    ```
 
 7. **Run the server**
@@ -792,7 +792,7 @@ This two-step pattern exists because AI assistants can misinterpret intent. "Rem
 
 ### documentation engine internals
 
-1. **Loading** — `MarkdownLoader` reads every `.md` file in `docs/` and splits each file into chunks at heading boundaries (H1, H2, H3). It never splits mid-paragraph or mid-code-block.
+1. **Loading** — `MarkdownLoader` reads every `.md` file in `docs/` recursively (including subdirectories like `docs/patterns/`) and splits each file into chunks at heading boundaries (H1, H2, H3). It never splits mid-paragraph or mid-code-block.
 2. **Tokenization** — each chunk is tokenized into lowercase unigrams and bigrams. `send_message` becomes `send`, `message`, and `send_message`, which helps match multi-word API names.
 3. **Indexing** — tokens are fed into BM25Okapi, which computes term frequencies and document lengths for ranking.
 4. **Searching** — queries are tokenized the same way, and BM25 scores every chunk. The top-k results are returned with their scores.
@@ -846,7 +846,22 @@ telebotstudio-mcp/
 │   ├── credential_tools.py credential MCP tools
 │   └── helpers.py         shared tool utilities
 ├── tests/                 pytest suite (244 tests)
+<<<<<<< HEAD
 ├── docs/                  official TeleBot Studio documentation (.md)
+=======
+├── docs/
+│   ├── *.md               official TeleBot Studio documentation
+│   └── patterns/           implementation pattern knowledge base
+│       ├── README.md       pattern index and standards
+│       ├── TEMPLATE.md     standard pattern template
+│       ├── ui/             user-facing interaction patterns
+│       ├── admin/          bot owner tool patterns
+│       ├── systems/        core infrastructure patterns
+│       ├── commerce/       payment & referral patterns
+│       ├── storage/        data persistence patterns
+│       ├── integrations/   external service patterns
+│       └── utilities/      reusable helper patterns
+>>>>>>> c15d897 (docs: synchronize README and project metadata)
 ├── Dockerfile             container definition
 ├── .dockerignore          Docker build exclusions
 ├── requirements.txt       Python dependencies
@@ -1241,7 +1256,7 @@ The architecture is designed for extensibility:
 
 ### adding documentation
 
-1. Drop `.md` files into the `docs/` directory
+1. Drop `.md` files into the `docs/` directory (subdirectories are scanned recursively)
 2. Restart the server — the BM25 index rebuilds automatically
 
 ### coding style

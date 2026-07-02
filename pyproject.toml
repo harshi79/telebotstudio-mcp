@@ -4,7 +4,7 @@
 
 [project]
 name = "telebotstudio-mcp"
-version = "2.0.0"
+version = "2.1.0"
 description = "BM25-powered TeleBot Studio documentation search & REST API MCP server"
 requires-python = ">=3.11"
 license = "MIT"

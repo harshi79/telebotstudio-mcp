@@ -72,7 +72,7 @@ class MarkdownLoader:
             logger.error("Documentation path is not a directory: %s", self.docs_path)
             return []
 
-        files = sorted(self.docs_path.glob("*.md"))
+        files = sorted(self.docs_path.rglob("*.md"))
 
         if not files:
             logger.warning("No markdown files found in %s", self.docs_path)
@@ -85,11 +85,12 @@ class MarkdownLoader:
         for file in files:
             try:
                 file_chunks = self._parse_file(file)
+                rel = str(file.relative_to(self.docs_path))
                 if file_chunks:
                     chunks.extend(file_chunks)
-                    logger.debug("  %s: %d chunks", file.name, len(file_chunks))
+                    logger.debug("  %s: %d chunks", rel, len(file_chunks))
                 else:
-                    logger.warning("  %s: no chunks produced (empty file?)", file.name)
+                    logger.warning("  %s: no chunks produced (empty file?)", rel)
             except Exception as e:
                 logger.error("  %s: failed to parse: %s", file.name, e)
 
@@ -121,6 +122,7 @@ class MarkdownLoader:
 
         chunks: list[Chunk] = []
 
+        relative_path = str(path.relative_to(self.docs_path))
         current_title = path.stem  # Default: filename without extension
         current_level = 0
         current_lines: list[str] = []
@@ -154,7 +156,7 @@ class MarkdownLoader:
                             chunks.append(
                                 Chunk(
                                     title=current_title,
-                                    file=path.name,
+                                    file=relative_path,
                                     heading_level=current_level,
                                     content=content,
                                 )
@@ -175,7 +177,7 @@ class MarkdownLoader:
                 chunks.append(
                     Chunk(
                         title=current_title,
-                        file=path.name,
+                        file=relative_path,
                         heading_level=current_level,
                         content=content,
                     )
