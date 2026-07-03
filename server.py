@@ -645,7 +645,7 @@ def main() -> None:
                 host=args.host,
                 port=args.port,
                 path="/mcp",
-                middleware=[_SessionMiddleware],
+                middleware=[(_SessionMiddleware, [], {})],
             )
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
