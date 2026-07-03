@@ -8,13 +8,19 @@ Handles:
   - Rate-limit header extraction
   - Error response → typed exception mapping
   - Connection lifecycle (always closed in finally)
+  - Connection pooling with HTTP Keep-Alive for reuse across requests
+  - Bounded LRU pool (max 100 tenants) with idle timeout eviction
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import logging
-from typing import Any
+import threading
+import time
+from collections import OrderedDict
+from typing import Any, ClassVar
 
 import httpx
 
@@ -38,8 +44,107 @@ MAX_RETRIES = 3
 RETRY_BACKOFF = [1, 2, 4]  # seconds
 
 
+class ConnectionPool:
+    """Thread-safe pool of persistent httpx.Client instances.
+
+    Clients are keyed by a SHA-256 hash of the API key so that different
+    credentials get different connections.  The pool is bounded at
+    ``max_size`` clients and evicts least-recently-used entries when
+    full.  Connections idle longer than ``idle_timeout`` seconds are
+    proactively closed and removed on the next ``get_client`` call.
+
+    All public methods are protected by a ``threading.Lock``.
+    """
+
+    def __init__(
+        self,
+        max_size: int = 100,
+        idle_timeout: float = 300.0,
+    ) -> None:
+        self._max_size = max_size
+        self._idle_timeout = idle_timeout  # seconds; 0 = disabled
+        # Each entry: SHA-256 key → (client, last_used_timestamp)
+        self._pool: OrderedDict[str, tuple[TeleBotStudioClient, float]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _key(api_key: str) -> str:
+        """Deterministic key from an API key (SHA-256 hash)."""
+        return hashlib.sha256(api_key.encode()).hexdigest()
+
+    def _evict_idle(self) -> None:
+        """Evict entries idle longer than ``idle_timeout``.
+
+        Must be called while holding ``self._lock``.
+        """
+        if self._idle_timeout <= 0:
+            return
+        now = time.monotonic()
+        while self._pool:
+            # Peek at the oldest (front of OrderedDict)
+            k, (client, last_used) = next(iter(self._pool.items()))
+            if now - last_used > self._idle_timeout:
+                self._pool.popitem(last=False)
+                with contextlib.suppress(Exception):
+                    client.close()
+            else:
+                break  # Oldest is not idle → no more to evict
+
+    def get_client(
+        self,
+        api_key: str,
+        base_url: str | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> TeleBotStudioClient:
+        """Get or create a pooled client for the given API key."""
+        k = self._key(api_key)
+        with self._lock:
+            # Proactively evict stale idle connections
+            self._evict_idle()
+
+            if k in self._pool:
+                client, _ = self._pool[k]
+                self._pool.move_to_end(k)
+                self._pool[k] = (client, time.monotonic())
+                return client
+
+            # Create a new pooled client
+            client = TeleBotStudioClient(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+            )
+            self._pool[k] = (client, time.monotonic())
+            self._pool.move_to_end(k)
+
+            # Evict LRU if over capacity
+            while len(self._pool) > self._max_size:
+                _, (evicted, _) = self._pool.popitem(last=False)
+                with contextlib.suppress(Exception):
+                    evicted.close()
+
+            return client
+
+    def close_all(self) -> None:
+        """Close all pooled clients (for graceful shutdown)."""
+        with self._lock:
+            for client, _ in self._pool.values():
+                with contextlib.suppress(Exception):
+                    client.close()
+            self._pool.clear()
+
+    def active_client_count(self) -> int:
+        """Return the number of currently pooled clients."""
+        with self._lock:
+            return len(self._pool)
+
+
 class TeleBotStudioClient:
     """Low-level HTTP client for the TeleBot Studio REST API v2."""
+
+    # Class-level connection pool shared across all instances.
+    # Bounded at 100 tenants with 5-minute idle eviction.
+    _pool: ClassVar[ConnectionPool] = ConnectionPool(max_size=100, idle_timeout=300.0)
 
     def __init__(
         self,
@@ -51,6 +156,36 @@ class TeleBotStudioClient:
         self._base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
         self._timeout = timeout
         self._http: httpx.Client | None = None
+
+    # ---- Class-level pool methods ----
+
+    @classmethod
+    def from_pool(
+        cls,
+        api_key: str,
+        base_url: str | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> TeleBotStudioClient:
+        """Get a client from the connection pool.
+
+        Returns an existing client if one is already pooled for this
+        API key, otherwise creates a new one and adds it to the pool.
+        """
+        return cls._pool.get_client(api_key, base_url=base_url, timeout=timeout)
+
+    @classmethod
+    def close_pool(cls) -> None:
+        """Close all pooled clients (for server shutdown)."""
+        cls._pool.close_all()
+
+    @classmethod
+    def pool_stats(cls) -> dict[str, int | float]:
+        """Return pool size, active client count, and idle timeout for monitoring."""
+        return {
+            "pool_size": cls._pool._max_size,
+            "active_clients": cls._pool.active_client_count(),
+            "idle_timeout": cls._pool._idle_timeout,
+        }
 
     # ---- Context Manager ----
 
@@ -68,6 +203,10 @@ class TeleBotStudioClient:
                 base_url=self._base_url,
                 timeout=self._timeout,
                 headers=self._auth_headers(),
+                limits=httpx.Limits(
+                    max_connections=10,
+                    max_keepalive_connections=5,
+                ),
             )
 
     def close(self) -> None:

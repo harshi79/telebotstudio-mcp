@@ -7,25 +7,26 @@ MCP server process and are lost on restart (intentional).
 
 Thread Safety:
     All shared state is protected by a threading.Lock.  The active
-    session ID is stored in thread-local storage so that concurrent
-    HTTP requests do not interfere with each other.
+    session ID is stored in both thread-local storage and a
+    contextvars.ContextVar so that concurrent HTTP requests and
+    async handlers do not interfere with each other.
 
 Session Isolation (HTTP transport):
     When set_session() is called with a unique session ID per
     client, credentials are fully isolated between sessions.
 
-    LIMITATION: FastMCP's streamable-http transport does not
-    currently expose a session identifier to tool handlers.  Until
-    a middleware hook is available, all HTTP clients share the
-    global (STDIO-fallback) credential store.  This is safe for
-    single-user deployments but should not be used in multi-tenant
-    environments without additional session middleware.
+    The session ID is resolved via contextvars first (for async
+    middleware support), falling back to thread-local storage, and
+    finally to None (STDIO fallback).  Use set_context_session()
+    from async middleware to set the contextvar without touching
+    thread-local state.
 
 For STDIO transport (single user), there is only one session.
 """
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import threading
 from typing import Any, ClassVar
@@ -42,8 +43,10 @@ class CredentialManager:
     Falls back to a global default for single-user STDIO mode.
 
     Thread-safe: all access to shared state is protected by a lock.
-    Uses thread-local storage for the active session ID so that
-    concurrent requests in HTTP mode cannot interfere with each other.
+    Uses both contextvars and thread-local storage for the active
+    session ID so that concurrent requests in HTTP mode (including
+    async handlers) cannot interfere with each other.  The contextvar
+    is checked first, then thread-local storage, then None.
     """
 
     _lock: ClassVar[threading.Lock] = threading.Lock()
@@ -58,21 +61,52 @@ class CredentialManager:
     # Thread-local active session ID (replaces class-level _current_session_id)
     _tls: ClassVar[threading.local] = threading.local()
 
+    # Contextvar for async-compatible session isolation
+    _ctx_session_id: ClassVar[contextvars.ContextVar[str | None]] = (
+        contextvars.ContextVar("_ctx_session_id", default=None)
+    )
+
     # ---- Session Management ----
 
     @classmethod
     def set_session(cls, session_id: str | None) -> None:
         """Set the active session ID for the current request context.
 
-        Uses thread-local storage so concurrent HTTP requests
-        do not overwrite each other's session.
+        Sets both the contextvar and thread-local storage so that
+        concurrent HTTP requests and async handlers do not overwrite
+        each other's session.
         """
+        cls._ctx_session_id.set(session_id)
         cls._tls.session_id = session_id
 
     @classmethod
     def get_session_id(cls) -> str | None:
-        """Get the current active session ID."""
+        """Get the current active session ID.
+
+        Checks the contextvar first (for async middleware support),
+        then falls back to thread-local storage, then returns None.
+        """
+        ctx_val = cls._ctx_session_id.get()
+        if ctx_val is not None:
+            return ctx_val
         return getattr(cls._tls, "session_id", None)
+
+    @classmethod
+    def set_context_session(cls, session_id: str | None) -> None:
+        """Set ONLY the contextvar session ID (for use in async middleware).
+
+        This does not modify thread-local storage, making it safe to
+        call from async request middleware that runs in a shared thread.
+        """
+        cls._ctx_session_id.set(session_id)
+
+    @classmethod
+    def get_context_session_id(cls) -> str | None:
+        """Read ONLY the contextvar session ID.
+
+        Returns None if no contextvar session has been set.
+        """
+        return cls._ctx_session_id.get()
 
     # ---- Internal Helpers ----
 
