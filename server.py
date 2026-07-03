@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import logging
 import os
@@ -34,6 +35,8 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
+from api.client import TeleBotStudioClient
+from api.session import CredentialManager
 from loader import Chunk, MarkdownLoader
 from search import SearchEngine
 from tools.api_tools import register_api_tools
@@ -127,13 +130,73 @@ mcp = FastMCP(
 
 
 # ---------------------------------------------------------------------------
+# Session Middleware (extracts X-Session-ID header for multi-tenant isolation)
+# ---------------------------------------------------------------------------
+
+
+class _SessionMiddleware:
+    """ASGI middleware that extracts X-Session-ID from incoming HTTP
+    requests and sets the session context for multi-tenant isolation.
+
+    Sets BOTH the contextvar and thread-local storage so that session
+    isolation works correctly for:
+
+      - **Async handlers** — contextvar is naturally scoped to the
+        async task; no cross-request leakage.
+      - **Sync handlers dispatched to thread pools** — Python 3.11+
+        ``asyncio.to_thread()`` propagates contextvars to the worker
+        thread.  The thread-local acts as a fallback for edge cases
+        where contextvar propagation is unavailable.
+
+    If no X-Session-ID header is present, the session is set to None
+    so that STDIO fallback works correctly.
+
+    This middleware is passed via FastMCP's ``middleware`` parameter,
+    which integrates it into the ASGI stack WITHOUT bypassing FastMCP's
+    internal protocol lifecycle layer (SSE / streamable-HTTP routing).
+    Overwriting ``mcp._app`` directly would break SSE streams; this
+    approach is safe by design.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] in ("http", "websocket"):
+            # Extract X-Session-ID from request headers
+            headers = dict(scope.get("headers", []))
+            session_id: str | None = None
+            raw = headers.get(b"x-session-id")
+            if raw:
+                session_id = raw.decode("utf-8", errors="replace")
+            # Set BOTH contextvar and thread-local for maximum compatibility:
+            # - contextvar: correct per-task isolation for async handlers
+            # - thread-local: fallback for sync handlers in thread pools
+            #   where contextvar may not propagate in older Python versions
+            CredentialManager.set_session(session_id)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            # Reset the contextvar after the request completes to prevent
+            # stale session IDs from leaking if the async task context is
+            # reused.  Thread-local is NOT reset here — the next request's
+            # middleware will overwrite it via set_session().
+            if scope["type"] in ("http", "websocket"):
+                CredentialManager.set_context_session(None)
+
+
+# ---------------------------------------------------------------------------
 # Health Endpoint (for uptime monitoring, e.g. UptimeRobot)
 # ---------------------------------------------------------------------------
 
 @mcp.custom_route("/health", methods=["GET"], name="health_check")
 async def health_check(request: Request) -> Response:
     """Lightweight health endpoint for uptime monitoring tools."""
-    return JSONResponse({"status": "ok"})
+    return JSONResponse({
+        "status": "ok",
+        "session_count": CredentialManager.active_session_count(),
+        "pool_stats": TeleBotStudioClient.pool_stats(),
+    })
 
 # Register API action tools (18 new tools)
 register_api_tools(mcp)
@@ -513,6 +576,9 @@ def search_errors(query: str, top_k: int = 5) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+# Register atexit handler for graceful pool shutdown
+atexit.register(TeleBotStudioClient.close_pool)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -579,12 +645,16 @@ def main() -> None:
                 host=args.host,
                 port=args.port,
                 path="/mcp",
+                middleware=[_SessionMiddleware],
             )
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
     except Exception as e:
         logger.error("Server error: %s", e, exc_info=True)
         sys.exit(1)
+    finally:
+        # Close pooled connections on shutdown
+        TeleBotStudioClient.close_pool()
 
 
 if __name__ == "__main__":

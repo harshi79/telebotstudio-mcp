@@ -6,18 +6,24 @@ chunks based on heading boundaries (H1, H2, H3). This ensures
 context is never arbitrarily broken in the middle of a thought
 or API definition.
 
+Heading Detection:
+    All ATX headings (H1-H6) are detected using explicit character
+    counting rather than regex, for maximum parsing resilience with
+    complex formatting patterns.  Only H1-H3 trigger chunk splits;
+    H4-H6 are recognized but remain part of the current chunk's
+    content (preserving context within larger sections).
+
 Chunking Strategy:
     We do NOT use arbitrary character counts (e.g., "split every 500
     tokens").  Arbitrary splits destroy context.  Instead, we parse
-    the AST of the Markdown file and split exclusively on headings
-    (#, ##, ###).  This guarantees every chunk contains a complete,
-    self-contained thought or API definition.
+    the Markdown file and split on structural headings (H1-H3).
+    This guarantees every chunk contains a complete, self-contained
+    thought or API definition.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,8 +53,9 @@ class MarkdownLoader:
     code blocks are NOT treated as chunk boundaries.
     """
 
-    # Only split on H1, H2, H3 to preserve context
-    HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$")
+    # Maximum heading level that triggers a chunk split.
+    # H1-H3 create new chunks; H4-H6 are detected but remain in content.
+    MAX_SPLIT_LEVEL = 3
 
     def __init__(self, docs_path: str = "docs") -> None:
         """
@@ -98,6 +105,51 @@ class MarkdownLoader:
 
         return chunks
 
+    @staticmethod
+    def _parse_heading(line: str) -> tuple[int, str] | None:
+        """Parse a markdown ATX heading using explicit character counting.
+
+        Returns ``(level, title)`` if *line* is a valid heading (H1-H6),
+        or ``None`` if it is not.  Uses structured string inspection
+        rather than regex for maximum parsing resilience with complex
+        formatting patterns in ``docs/patterns/``.
+
+        Rules (CommonMark ATX heading spec):
+          - 1–6 ``#`` characters at the start of the line (no leading space)
+          - Must be followed by at least one space or tab
+          - More than 6 ``#`` characters is NOT a heading
+          - Empty title (e.g. ``### ``) is rejected
+        """
+        if not line or line[0] != "#":
+            return None
+
+        # Count consecutive leading '#' characters (cap at 6)
+        level = 0
+        for ch in line:
+            if ch == "#" and level < 6:
+                level += 1
+            else:
+                break
+
+        if level < 1:
+            return None
+
+        rest = line[level:]
+
+        # 7+ '#' characters → not a heading per CommonMark
+        if rest.startswith("#"):
+            return None
+
+        # ATX heading requires a space or tab after the '#' characters
+        if not rest or rest[0] not in (" ", "\t"):
+            return None
+
+        title = rest.strip()
+        if not title:
+            return None  # "### " with nothing after is not a valid heading
+
+        return level, title
+
     def _parse_file(self, path: Path) -> list[Chunk]:
         """
         Parse a single markdown file into heading-aware chunks.
@@ -107,7 +159,9 @@ class MarkdownLoader:
         2. Track whether we are inside a code fence.
         3. When we encounter a heading (H1-H3) outside a code fence,
            flush the current chunk and start a new one.
-        4. After processing all lines, flush the final chunk.
+        4. H4-H6 headings are detected but do NOT create chunk
+           boundaries — they remain part of the current chunk content.
+        5. After processing all lines, flush the final chunk.
         """
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -146,27 +200,31 @@ class MarkdownLoader:
 
             # Check for heading ONLY outside code fences
             if not inside_code:
-                match = self.HEADING_RE.match(line)
+                heading = self._parse_heading(line)
 
-                if match:
-                    # Flush current chunk (if it has content)
-                    if current_lines:
-                        content = "\n".join(current_lines).strip()
-                        if content:  # Skip empty chunks
-                            chunks.append(
-                                Chunk(
-                                    title=current_title,
-                                    file=relative_path,
-                                    heading_level=current_level,
-                                    content=content,
+                if heading is not None:
+                    heading_level, heading_title = heading
+
+                    # Only split on H1-H3; deeper headings remain in content
+                    if heading_level <= self.MAX_SPLIT_LEVEL:
+                        # Flush current chunk (if it has content)
+                        if current_lines:
+                            content = "\n".join(current_lines).strip()
+                            if content:  # Skip empty chunks
+                                chunks.append(
+                                    Chunk(
+                                        title=current_title,
+                                        file=relative_path,
+                                        heading_level=current_level,
+                                        content=content,
+                                    )
                                 )
-                            )
 
-                    # Start new chunk
-                    current_level = len(match.group(1))
-                    current_title = match.group(2).strip()
-                    current_lines = [line]
-                    continue
+                        # Start new chunk
+                        current_level = heading_level
+                        current_title = heading_title
+                        current_lines = [line]
+                        continue
 
             current_lines.append(line)
 

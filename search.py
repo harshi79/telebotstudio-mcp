@@ -2,8 +2,8 @@
 BM25-based search engine for TeleBot Studio documentation.
 
 Implements deterministic BM25 ranking with both unigram and bigram
-tokenization, scoped search filters, and thread-safe LRU caching
-for repeated queries.
+tokenization, scoped search filters, heading-weighted boosting,
+and thread-safe LRU caching for repeated queries.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ class LRUCache:
         self._misses = 0
 
     def _key(self, method: str, query: str, top_k: int) -> str:
-        return f"{method}\x00{query}\x00{top_k}"
+        return f"{method}\x00{query}\x00{top_k}\x00v2"
 
     def get(self, method: str, query: str, top_k: int) -> list | None:
         k = self._key(method, query, top_k)
@@ -120,6 +120,7 @@ class SearchEngine:
     Supports:
     - Full-text BM25 search across all chunks
     - Scoped searches (examples, API, library, functions, errors)
+    - Heading-weighted score boosting
     - Page retrieval by filename
     - Page listing
     - Thread-safe LRU caching for repeated queries
@@ -156,6 +157,21 @@ class SearchEngine:
         "catch", "try", "except", "status code", "http error",
         "timeout", "refused", "denied", "not found", "invalid",
     })
+
+    # Heading level -> score multiplier (applied after BM25 scoring).
+    # Higher structural importance (H1 page titles) gets a larger boost.
+    # H4-H6 entries are provided for forward compatibility; the loader
+    # currently keeps H4+ content inside the parent H1-H3 chunk, but
+    # if that changes these weights will be ready.
+    HEADING_WEIGHTS: dict[int, float] = {
+        0: 1.0,   # No heading (pre-heading content)
+        1: 1.4,   # H1 — page titles, highest structural importance
+        2: 1.2,   # H2 — major sections
+        3: 1.1,   # H3 — subsections
+        4: 1.05,  # H4 — sub-subsections, minimal boost
+        5: 1.0,   # H5 — no boost (same as no heading)
+        6: 1.0,   # H6 — no boost (same as no heading)
+    }
 
     def __init__(self, chunks: list[Chunk], cache_size: int = 256) -> None:
         self.chunks = chunks
@@ -231,6 +247,9 @@ class SearchEngine:
 
         Uses ``heapq.nlargest`` for O(n + k log n) performance instead
         of sorting all chunks at O(n log n).
+
+        Heading weights are applied as multipliers to the BM25 scores
+        before selecting top-k results.
         """
         # Check cache first
         cached = self._cache.get("search", query, top_k)
@@ -243,9 +262,17 @@ class SearchEngine:
 
         scores = self.bm25.get_scores(tokens)
 
+        # Apply heading weights to BM25 scores
+        weighted_scores = [
+            float(scores[i]) * self.HEADING_WEIGHTS.get(
+                self.chunks[i].heading_level, 1.0
+            )
+            for i in range(len(scores))
+        ]
+
         # Use heapq.nlargest for efficient top-k extraction
-        # Create (score, index) pairs and find the top-k
-        scored_indices = [(float(scores[i]), i) for i in range(len(scores))]
+        # Create (weighted_score, index) pairs and find the top-k
+        scored_indices = [(weighted_scores[i], i) for i in range(len(weighted_scores))]
         top_scored = heapq.nlargest(top_k, scored_indices, key=lambda x: x[0])
 
         results: list[tuple[Chunk, float]] = []
@@ -409,6 +436,8 @@ class SearchEngine:
         2. Filter candidates whose pre-computed flag matches.
         3. Also boost candidates whose titles contain any of the given keywords.
         4. If no flagged chunks exist, fall back to generic results.
+
+        Heading weights and title boosts stack multiplicatively.
         """
         broad_results = self.search(query, top_k=top_k * 10)
 
@@ -423,7 +452,9 @@ class SearchEngine:
                 # Boost score if title also matches
                 title_lower = chunk.title.lower()
                 title_boost = any(kw in title_lower for kw in title_keywords)
-                boosted_score = score * (1.5 if title_boost else 1.0)
+                heading_weight = self.HEADING_WEIGHTS.get(chunk.heading_level, 1.0)
+                # Title boost and heading weight stack multiplicatively
+                boosted_score = score * (1.5 if title_boost else 1.0) * heading_weight
                 flagged.append((chunk, boosted_score))
 
         if flagged:
