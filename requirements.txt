@@ -1,5 +1,5 @@
 # Core dependencies
-fastmcp>=2.0.0,<4.0.0
+fastmcp>=3.4.2,<4.0.0
 rank-bm25>=0.2.2,<1.0.0
 
 # API client (Phase 2 — REST API integration)
