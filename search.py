@@ -13,6 +13,7 @@ import logging
 import re
 import threading
 from collections import OrderedDict
+from typing import ClassVar
 
 from rank_bm25 import BM25Okapi
 
@@ -163,7 +164,7 @@ class SearchEngine:
     # H4-H6 entries are provided for forward compatibility; the loader
     # currently keeps H4+ content inside the parent H1-H3 chunk, but
     # if that changes these weights will be ready.
-    HEADING_WEIGHTS: dict[int, float] = {
+    HEADING_WEIGHTS: ClassVar[dict[int, float]] = {
         0: 1.0,   # No heading (pre-heading content)
         1: 1.4,   # H1 — page titles, highest structural importance
         2: 1.2,   # H2 — major sections
