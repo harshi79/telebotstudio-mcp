@@ -82,7 +82,7 @@ class ConnectionPool:
         now = time.monotonic()
         while self._pool:
             # Peek at the oldest (front of OrderedDict)
-            k, (client, last_used) = next(iter(self._pool.items()))
+            _, (client, last_used) = next(iter(self._pool.items()))
             if now - last_used > self._idle_timeout:
                 self._pool.popitem(last=False)
                 with contextlib.suppress(Exception):

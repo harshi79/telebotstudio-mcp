@@ -115,7 +115,7 @@ class MarkdownLoader:
         formatting patterns in ``docs/patterns/``.
 
         Rules (CommonMark ATX heading spec):
-          - 1–6 ``#`` characters at the start of the line (no leading space)
+          - 1-6 ``#`` characters at the start of the line (no leading space)
           - Must be followed by at least one space or tab
           - More than 6 ``#`` characters is NOT a heading
           - Empty title (e.g. ``### ``) is rejected
