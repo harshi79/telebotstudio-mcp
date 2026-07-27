@@ -362,6 +362,33 @@ Api.sendMessage("⏳ Wallet not connected yet")
 Api.sendMessage("Please scan the QR code with your wallet")
 ```
 \*\*\*
+### Lib.TON.register\_ton\_connect\_wallet() \*(Added in v1.1.0)\*
+Marks a TON Connect session as connected and stores the wallet address — call this from your own callback once a wallet approves the connection request.
+\*\*Syntax:\*\*
+```python
+Lib.TON.register\_ton\_connect\_wallet(session\_id, wallet\_address)
+```
+\*\*Parameters:\*\*
+\* `session\_id` (Required): The session ID from `connectSession()`
+\* `wallet\_address` (Required): The wallet address that approved the connection
+\*\*Returns:\*\* Dictionary with:
+\* `ok` (bool): Success status
+\* `session\_id` (str): The session that was updated
+\* `wallet\_address` (str): The wallet address that was registered
+\* `error` (str): Error message if `ok` is False
+\*\*Example:\*\*
+```python
+# In your wallet-connection callback command, once the wallet approves:
+session\_id = User.fetchData("ton\_connect\_session")
+approved\_wallet = "EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v\_zXJmqaDp6\_0t"
+result = Lib.TON.register\_ton\_connect\_wallet(session\_id, approved\_wallet)
+if result['ok']:
+    Api.sendMessage("✅ Wallet successfully linked!")
+    User.storeData("connected\_wallet", approved\_wallet)
+else:
+    Api.sendMessage(f"❌ Could not link wallet: {result['error']}")
+```
+\*\*\*
 ### Lib.TON.requestPayment()
 Requests a TON transfer from a connected wallet.
 \*\*Syntax:\*\*
@@ -437,6 +464,30 @@ Api.sendMessage(f"Decimals: {token['decimals']}")
 Api.sendMessage(f"Supply: {token['total\_supply']}")
 except Exception as e:
 Api.sendMessage(f"Error: {str(e)}")
+```
+\*\*\*
+### Lib.TON.get\_jetton\_wallet\_address() \*(Added in v1.1.0)\*
+Resolves the Jetton wallet address for a specific owner, without needing a full balance lookup.
+\*\*Syntax:\*\*
+```python
+Lib.TON.get\_jetton\_wallet\_address(owner\_address, jetton\_master\_address, api\_key=None, endpoint=None)
+```
+\*\*Parameters:\*\*
+\* `owner\_address` (Required): The wallet address that owns (or would own) the Jetton
+\* `jetton\_master\_address` (Required): Master contract address of the Jetton
+\* `api\_key` (Optional): TON Center API key
+\* `endpoint` (Optional): Custom RPC endpoint
+\*\*Returns:\*\* String containing the resolved Jetton wallet address
+\*\*Example:\*\*
+```python
+# /jetton\_wallet command
+owner\_address = User.fetchData("ton\_address")
+jetton\_address = "EQBl3gg6AAdjgjO2ZoNU5Q5EzUIl8XMNZrix8Z5dJmkHUfxI"
+try:
+    jetton\_wallet = Lib.TON.get\_jetton\_wallet\_address(owner\_address, jetton\_address)
+    Api.sendMessage(f"Your Jetton wallet address:\n`{jetton\_wallet}`")
+except Exception as e:
+    Api.sendMessage(f"Error: {str(e)}")
 ```
 \*\*\*
 ### Lib.TON.tokenBalance()

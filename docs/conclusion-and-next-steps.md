@@ -49,6 +49,10 @@ Access powerful features out of the box:
 \* \*\*Lib.DateTime\*\*: Time and date utilities
 \* \*\*Lib.Random\*\*: Random generation
 \* \*\*Lib.CSV\*\*: Data management
+\* \*\*Lib.PIL\*\*: Image editing \*(Added in v1.1.0)\*
+\* \*\*Lib.CV\*\*: Computer vision and face detection \*(Added in v1.1.0)\*
+\* \*\*Lib.Security\*\*: Cryptography — HMAC, AES, hashing \*(Added in v1.1.0)\*
+\* \*\*Lib.TeleGifts\*\*: Telegram Gifts paid in Stars \*(Added in v1.1.0)\*
 \* \*\*Lib.Webhook\*\*: Integration webhooks
 \* \*\*Lib.Crypto\*\*: Cryptocurrency utilities
 \* \*\*Request\*\*: HTTP client

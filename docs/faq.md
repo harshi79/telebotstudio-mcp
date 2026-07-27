@@ -134,9 +134,14 @@ TeleBot Studio includes:
 \* \*\*Lib.DateTime\*\*: Date and time utilities
 \* \*\*Lib.Random\*\*: Random number and string generation
 \* \*\*Lib.CSV\*\*: CSV file management
+\* \*\*Lib.PIL\*\*: Image editing — resize, crop, draw, filters, watermarks \*(Added in v1.1.0)\*
+\* \*\*Lib.CV\*\*: Computer vision — face detection, contours, edge detection \*(Added in v1.1.0)\*
+\* \*\*Lib.Security\*\*: HMAC, Ed25519, AES encryption, and hashing \*(Added in v1.1.0)\*
+\* \*\*Lib.TeleGifts\*\*: Send Telegram Gifts paid in Stars \*(Added in v1.1.0)\*
 \* \*\*Lib.Webhook\*\*: Webhook generation and management
 \* \*\*Lib.Oxapay\*\*: Payment processing
 \* \*\*Lib.Crypto\*\*: Cryptocurrency utilities
+\* \*\*Lib.RefLib\*\*: Referral tracking and leaderboards
 \* \*\*Request\*\*: HTTP client for API calls
 ### 2. How do I make HTTP requests?
 Use the `Request` module:

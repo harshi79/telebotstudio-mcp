@@ -27,6 +27,20 @@ Generate random values for games, giveaways, unique identifiers, and more.
 | `string` | `length` (int), `char\_set` (str, optional) | str | Random string of specified length |
 | `decimal` | `min` (float), `max` (float) | float | Random decimal number between min and max |
 | `ascii` | `length` (int) | str | Random ASCII string of specified length |
+#### New Methods \*(Added in v1.1.0)\*
+| Method           | Parameters                                                                     | Returns | Description                                                 |
+| ---------------- | ------------------------------------------------------------------------------ | ------- | ----------------------------------------------------------- |
+| `hex`            | `length` (int)                                                                 | str     | Random hexadecimal string of specified length               |
+| `bytes`          | `length` (int)                                                                 | bytes   | Random bytes object of specified length                     |
+| `uuid`           | None                                                                           | str     | A random UUID4 string                                       |
+| `password`       | `length` (int), `use\_digits` (bool, optional), `use\_specials` (bool, optional) | str     | Random password with configurable digits/special characters |
+| `choice`         | `data` (list)                                                                  | any     | One random element from a list                              |
+| `sample`         | `data` (list), `k` (int)                                                       | list    | `k` unique random elements from a list                      |
+| `shuffle`        | `data` (list)                                                                  | list    | Returns a new shuffled copy of a list (original unchanged)  |
+| `weightedChoice` | `data` (list), `weights` (list)                                                | any     | One element chosen according to relative weights            |
+| `boolean`        | None                                                                           | bool    | Random True/False                                           |
+| `range`          | `start` (int), `stop` (int), `count` (int)                                     | list    | `count` unique integers sampled from a range                |
+| `gaussian`       | `mean` (float), `stddev` (float)                                               | float   | Random float from a Gaussian (normal) distribution          |
 #### Examples
 ```python
 # Roll a dice
@@ -42,6 +56,14 @@ Api.sendMessage(f"Today's special price: ${price:.2f}")
 # Generate secure token
 token = Lib.Random.ascii(32)
 User.storeData("api\_token", token)
+# New in v1.1.0: generate a secure password
+password = Lib.Random.password(12)
+Api.sendMessage(f"Your temporary password: {password}")
+# New in v1.1.0: weighted giveaway prize selection
+prize = Lib.Random.weightedChoice(["Common", "Rare", "Legendary"], weights=[70, 25, 5])
+Api.sendMessage(f"🎁 You won: {prize}!")
+# New in v1.1.0: pick unique winners from a participant list
+winners = Lib.Random.sample(participant\_ids, 3)
 ```
 \*\*Use Cases:\*\*
 \* Random giveaways and contests
@@ -102,6 +124,7 @@ csv = Lib.CSV.Table("filename.csv")
 | `count` | None | int | Get total number of rows |
 | `toString` | None | str | Export as CSV string |
 | `fromString` | `csv\_string` (str) | bool | Import from CSV string |
+| `clear`      | None                            | bool    | \*(Added in v1.1.0)\* Wipes the entire table (all rows and headers) |
 #### Examples
 ```python
 # Create leaderboard
@@ -128,6 +151,8 @@ Api.sendMessage(message)
 # Count entries
 total = leaderboard.count()
 Api.sendMessage(f"Total players: {total}")
+# New in v1.1.0: clear the entire table
+leaderboard.clear()
 ```
 \*\*Use Cases:\*\*
 \* Leaderboards and rankings
@@ -135,6 +160,66 @@ Api.sendMessage(f"Total players: {total}")
 \* User registration forms
 \* Event attendance tracking
 \* Order management
+\*\*\*
+## Media Libraries
+TeleBot Studio also includes two dedicated image-processing libraries: \*\*`Lib.PIL`\*\* for general-purpose image editing (resizing, cropping, text, watermarks, filters), and \*\*`Lib.CV`\*\* for advanced computer vision, including real face detection.
+Both libraries work entirely in-memory — load an image from bytes, transform it, and send it straight back to Telegram.
+```python
+resp = Request.get("https://example.com/photo.jpg")
+img = Lib.PIL.openFromBytes(resp.content)
+img = Lib.PIL.drawText(img, "Hello!", (10, 10))
+Bot.sendPhoto(photo=Lib.PIL.toBytes(img, format="PNG"))
+```
+📖 For the complete method reference, parameters, and examples for both libraries, see the [\*\*TBS Media Libraries (PIL & CV) Documentation\*\*](https://help.telebotstudio.com/tbs-media-libraries-pil-and-cv-documentation).
+\*\*\*
+## Security Libraries
+### Lib.Security \*(Added in v1.1.0)\*
+A cryptographic toolkit for HMAC signing, signature verification, AES encryption, and hashing — commonly needed for verifying payment gateway webhooks and securing stored data.
+#### Methods
+| Method                        | Parameters                                                                   | Returns | Description                                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `signHMAC`                    | `secret` (str), `data` (str), `algorithm` (str, optional)                    | str     | Creates an HMAC signature (hex string). `algorithm` can be `"sha256"` (default), `"sha512"`, or `"md5"` |
+| `verifyHMAC`                  | `secret` (str), `data` (str), `signature` (str), `algorithm` (str, optional) | bool    | Verifies an HMAC signature using a timing-safe comparison                                               |
+| `verifyEd25519`               | `public\_key\_hex` (str), `signature\_hex` (str), `data` (str)                  | bool    | Verifies an Ed25519 signature. Never raises — returns `False` on any invalid input                      |
+| `verifyPaymentGatewayWebhook` | `public\_key\_hex` (str), `signature\_hex` (str), `raw\_body` (str)              | bool    | Convenience wrapper for verifying Ed25519-signed payment gateway webhooks                               |
+| `generateKey`                 | None                                                                         | str     | Generates a new AES (Fernet) encryption key                                                             |
+| `encryptAES`                  | `plaintext` (str), `key` (str)                                               | str     | Encrypts a string, returning an encrypted token                                                         |
+| `decryptAES`                  | `token` (str), `key` (str)                                                   | str     | Decrypts a token back to the original plaintext                                                         |
+| `hashSHA256`                  | `data` (str)                                                                 | str     | SHA-256 hash (hex string)                                                                               |
+| `hashSHA512`                  | `data` (str)                                                                 | str     | SHA-512 hash (hex string)                                                                               |
+| `hashMD5`                     | `data` (str)                                                                 | str     | MD5 hash (hex string). Not suitable for security purposes                                               |
+#### Examples
+```python
+# Sign and verify data with HMAC
+secret = "my-webhook-secret"
+signature = Lib.Security.signHMAC(secret, request\_body)
+if Lib.Security.verifyHMAC(secret, request\_body, signature):
+    Api.sendMessage("✅ Signature verified!")
+# Verify a payment gateway webhook
+is\_valid = Lib.Security.verifyPaymentGatewayWebhook(
+    public\_key\_hex="...",
+    signature\_hex=options.headers.get("X-Signature"),
+    raw\_body=options.data
+)
+if is\_valid:
+    Api.sendMessage("✅ Payment webhook verified")
+# Encrypt and store sensitive data
+key = Lib.Security.generateKey()
+User.storeData("encryption\_key", key)
+encrypted = Lib.Security.encryptAES("sensitive user data", key)
+User.storeData("encrypted\_field", encrypted)
+# Decrypt it later
+stored\_key = User.fetchData("encryption\_key")
+stored\_data = User.fetchData("encrypted\_field")
+original = Lib.Security.decryptAES(stored\_data, stored\_key)
+# Hash a value
+hashed = Lib.Security.hashSHA256("some input string")
+```
+\*\*Use Cases:\*\*
+\* Verifying payment gateway webhook signatures
+\* Securely storing sensitive user data
+\* API request signing
+\* Data integrity checks
 \*\*\*
 ## Blockchain Libraries
 ### Lib.EVM
@@ -150,6 +235,11 @@ Ethereum, BSC, Polygon, Avalanche, Fantom, Arbitrum, Optimism, Base, ZKSync, Scr
 | `sendToken` | `value`, `to`, `contract\_address`, `rpc\_url`, `private\_key`, `network`, `retry`, `estimate\_gas` | Send ERC-20 tokens |
 | `networks` | None | Get list of supported networks |
 | `getRPC` | `network` (str) | Get default RPC URL for network |
+#### New Methods \*(Added in v1.1.0)\*
+| Method              | Parameters                                                                                                         | Description                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `fetchBalance`      | `address`, `network` (optional), `rpc\_url` (optional), `unit` (optional)                                           | Returns the native coin balance of an address. `unit` can be `"wei"`, `"gwei"`, or `"ether"` (default) |
+| `fetchTokenBalance` | `address`, `contract\_address`, `network` (optional), `rpc\_url` (optional), `decimals` (optional), `raw` (optional) | Returns the ERC-20 token balance of an address, with automatic decimal detection                       |
 #### Examples
 ```python
 # Generate and store wallet
@@ -176,6 +266,16 @@ Api.sendMessage(f"✅ Sent 50 USDT: {tx\_hash}")
 # Get supported networks
 networks = Lib.EVM.networks()
 Api.sendMessage(f"Supported networks: {len(networks)}")
+# New in v1.1.0: check a wallet's native balance
+balance = Lib.EVM.fetchBalance("0xWalletAddress", network="ethereum")
+Api.sendMessage(f"Balance: {balance} ETH")
+# New in v1.1.0: check a wallet's token balance
+usdt\_balance = Lib.EVM.fetchTokenBalance(
+    "0xWalletAddress",
+    contract\_address="0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    network="ethereum"
+)
+Api.sendMessage(f"USDT Balance: {usdt\_balance}")
 ```
 \*\*Use Cases:\*\*
 \* Crypto payment processing
@@ -204,12 +304,14 @@ Complete integration with The Open Network (TON) blockchain for payments, jetton
 | `connectSession` | `user\_id`, `expiry\_seconds` | Create wallet connection session |
 | `verifySession` | `session\_id` | Check if wallet connected |
 | `requestPayment` | `to\_address`, `amount`, `comment`, `callback\_url`, `return\_url` | Request payment from connected wallet |
+| `register\_ton\_connect\_wallet` | `session\_id`, `wallet\_address`                                  | \*(Added in v1.1.0)\* Marks a session as connected and stores the connected wallet address — used inside your own callback once a wallet approves the connection |
 #### Jetton Operations
 | Method | Parameters | Description |
 | -------------- | ---------------------------------------------------------------------------------------- | ----------------------- |
 | `tokenInfo` | `jetton\_master\_address`, `api\_key`, `endpoint` | Get token metadata |
 | `tokenBalance` | `owner\_address`, `jetton\_master\_address`, `api\_key`, `endpoint` | Check jetton balance |
 | `requestToken` | `to\_address`, `jetton\_master\_address`, `amount`, `comment`, `callback\_url`, `return\_url` | Request jetton transfer |
+| `get\_jetton\_wallet\_address` | `owner\_address`, `jetton\_master\_address`, `api\_key` (optional), `endpoint` (optional)    | \*(Added in v1.1.0)\* Resolves the Jetton wallet address for an owner, without needing a full balance lookup |
 #### Examples
 ```python
 # Create wallet
@@ -235,6 +337,16 @@ to\_address="EQD...",
 amount=5,
 comment="Subscription payment"
 )
+# New in v1.1.0: finalize a TON Connect session once the wallet approves
+result = Lib.TON.register\_ton\_connect\_wallet(session['session\_id'], wallet\_address="EQD...")
+if result['ok']:
+    Api.sendMessage("✅ Wallet connected!")
+# New in v1.1.0: resolve a Jetton wallet address directly
+jetton\_wallet = Lib.TON.get\_jetton\_wallet\_address(
+    owner\_address="EQD...",
+    jetton\_master\_address="EQC..."
+)
+Api.sendMessage(f"Jetton wallet: {jetton\_wallet}")
 ```
 \*\*Use Cases:\*\*
 \* TON payments
@@ -412,6 +524,64 @@ Api.sendMessage(f"{btc\_amount} BTC = ${usd\_value:.2f}")
 \* Payment calculations
 \* Market alerts
 \*\*\*
+## Gifting Libraries
+### Lib.TeleGifts \*(Added in v1.1.0)\*
+Send Telegram Gifts (paid in Stars) to any user — not limited to Premium accounts. Comes with a built-in catalog and full send history tracking.
+#### Catalog Methods
+| Method               | Parameters                 | Returns | Description                                                                                     |
+| -------------------- | -------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `getGiftCatalog`     | `category` (str, optional) | list    | Returns the gift catalog, optionally filtered by category (`"Budget"`, `"Premium"`, `"Luxury"`) |
+| `getGiftByKey`       | `gift\_key` (str)           | dict    | Get a single gift's details by its key                                                          |
+| `getGiftById`        | `gift\_id` (str)            | dict    | Get a single gift's details by its real Telegram gift ID                                        |
+| `getGiftsByCategory` | None                       | dict    | Returns all gifts grouped by category                                                           |
+| `searchGifts`        | `query` (str)              | list    | Search gifts by name, description, or emoji                                                     |
+| `getGiftPriceRange`  | None                       | dict    | Returns min/max/average price and per-category price ranges                                     |
+#### Sending Methods
+| Method         | Parameters                                                          | Returns | Description                               |
+| -------------- | ------------------------------------------------------------------- | ------- | ----------------------------------------- |
+| `sendGift`     | `user\_id`, `gift\_key`, `message` (optional), `bot\_token` (optional) | dict    | Sends a gift by its catalog key           |
+| `sendGiftById` | `user\_id`, `gift\_id`, `message` (optional), `bot\_token` (optional)  | dict    | Sends a gift by its real Telegram gift ID |
+#### History & Settings
+| Method               | Parameters                                                                        | Returns | Description                                 |
+| -------------------- | --------------------------------------------------------------------------------- | ------- | ------------------------------------------- |
+| `getGiftHistory`     | `limit` (int, optional), `status` (str, optional), `recipient\_id` (str, optional) | list    | Returns a log of every gift send attempt    |
+| `getGiftStats`       | None                                                                              | dict    | Returns total sent, failed, and Stars spent |
+| `setGiftSetting`     | `key` (str), `value` (any)                                                        | bool    | Store a custom setting                      |
+| `getGiftSetting`     | `key` (str), `default` (any, optional)                                            | any     | Retrieve a custom setting                   |
+| `getAllGiftSettings` | None                                                                              | dict    | Retrieve all custom settings                |
+#### Examples
+```python
+# Browse the catalog
+catalog = Lib.TeleGifts.getGiftCatalog()
+Api.sendMessage(f"We have {len(catalog)} gifts available!")
+# Look up a specific gift
+gift = Lib.TeleGifts.getGiftByKey("rose")
+Api.sendMessage(f"{gift['name']} costs {gift['stars']} Stars")
+# Send a gift
+result = Lib.TeleGifts.sendGift(
+    user\_id=u,
+    gift\_key="rose",
+    message="Thanks for joining our channel!"
+)
+if result['ok']:
+    Api.sendMessage("🌹 Gift sent!")
+else:
+    Api.sendMessage(f"❌ Could not send gift: {result['error']}")
+# Check price range for budgeting
+prices = Lib.TeleGifts.getGiftPriceRange()
+Api.sendMessage(f"Gifts range from {prices['min\_stars']} to {prices['max\_stars']} Stars")
+# View sending history and stats
+history = Lib.TeleGifts.getGiftHistory(limit=10)
+stats = Lib.TeleGifts.getGiftStats()
+Api.sendMessage(f"Total gifts sent: {stats['total\_sent']} ({stats['total\_stars\_spent']} Stars spent)")
+```
+\*\*Use Cases:\*\*
+\* Rewarding loyal users
+\* Giveaway prizes
+\* Referral bonuses
+\* Milestone celebrations
+\* Customer appreciation campaigns
+\*\*\*
 ## Growth & Marketing Libraries
 ### Lib.RefLib
 Complete referral tracking system for viral growth and user acquisition.
@@ -494,6 +664,19 @@ redirect\_to="https://example.com/success"
 # In webhook command, access data
 data = options.get("data")
 json\_data = options.get("json")
+```
+\*\*New in v1.1.0:\*\* commands triggered via a webhook URL can now also read the caller's request headers and IP address directly:
+```python
+# In a webhook-triggered command
+caller\_ip = options.ip
+custom\_header = options.headers.get("X-Custom-Header")
+```
+\*\*New in v1.1.0 — Webhook Result Sync:\*\* webhook-triggered commands can send a real response back to the external caller in the same request, using `Bot.setWebhookResponse()` (or `Api.setWebhookResponse()`):
+```python
+# In a webhook-triggered command
+result = {"status": "verified", "user\_id": u}
+Bot.setWebhookResponse(result)
+# The external caller's HTTP request receives this result directly
 ```
 \*\*Use Cases:\*\*
 \* Payment notifications
@@ -625,6 +808,19 @@ winner = all\_participants[winner\_index]
 Api.sendMessage(f"🎊 Winner: {winner['username']} (ID: {winner['user\_id']})")
 ```
 \*\*\*
+### Gift Reward Bot \*(New in v1.1.0)\*
+```python
+# Reward a user with a gift after they complete an action
+result = Lib.TeleGifts.sendGift(
+    user\_id=u,
+    gift\_key="teddy\_bear",
+    message="Thanks for being an awesome member!"
+)
+if result['ok']:
+    Api.sendMessage("🧸 Enjoy your gift!")
+else:
+    Api.sendMessage("Sorry, we couldn't send your gift right now.")
+```
 ## Best Practices
 ### Security
 1. \*\*Never expose API keys in messages\*\*
@@ -644,6 +840,14 @@ data = options["json"]
 if "amount" in data and "status" in data:
 # Process payment
 pass
+```
+3. \*\*Verify webhook signatures before trusting incoming data\*\* \*(New in v1.1.0)\*
+```python
+# In webhook command
+is\_valid = Lib.Security.verifyHMAC(webhook\_secret, options.data, options.headers.get("X-Signature"))
+if not is\_valid:
+    Bot.setWebhookResponse({"ok": False, "error": "Invalid signature"})
+    raise StopExecution()
 ```
 ### Performance
 1. \*\*Reuse AI threads\*\*
@@ -684,18 +888,22 @@ Bot.storeData("last\_error", str(e))
 \*\*\*
 ## Summary
 TBS Libraries provide everything you need to build sophisticated Telegram bots:
-| Library | Purpose | Key Features |
-| ------------ | ----------------------- | --------------------------------------- |
-| \*\*Random\*\* | Randomization | Integers, strings, decimals, ASCII |
-| \*\*DateTime\*\* | Time management | UTC time, timestamps, timezones |
-| \*\*CSV\*\* | Data storage | Tables, queries, export/import |
-| \*\*EVM\*\* | EVM blockchains | 31+ networks, tokens, native coins |
-| \*\*TON\*\* | TON blockchain | Wallets, jettons, TON Connect |
-| \*\*AI\*\* | Artificial Intelligence | OpenAI, Gemini, assistants |
-| \*\*Oxapay\*\* | Crypto payments | Invoices, payouts, tracking |
-| \*\*Crypto\*\* | Price data | Real-time prices, conversions |
-| \*\*RefLib\*\* | Referral system | Link generation, tracking, leaderboards |
-| \*\*Webhook\*\* | Integrations | External callbacks, bot communication |
+| Library               | Purpose                 | Key Features                                                                                                                                    |
+| --------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| \*\*Random\*\*            | Randomization           | Integers, strings, decimals, ASCII, UUIDs, passwords, weighted choices, and more                                                                |
+| \*\*DateTime\*\*          | Time management         | UTC time, timestamps, timezones                                                                                                                 |
+| \*\*CSV\*\*               | Data storage            | Tables, queries, export/import                                                                                                                  |
+| \*\*PIL\*\* \*(new)\*       | Image editing           | Resize, crop, draw, filters, watermarks — [see full docs](https://help.telebotstudio.com/tbs-media-libraries-pil-and-cv-documentation)          |
+| \*\*CV\*\* \*(new)\*        | Computer vision         | Face detection, contours, perspective transforms — [see full docs](https://help.telebotstudio.com/tbs-media-libraries-pil-and-cv-documentation) |
+| \*\*Security\*\* \*(new)\*  | Cryptography            | HMAC, Ed25519, AES encryption, hashing                                                                                                          |
+| \*\*EVM\*\*               | EVM blockchains         | 31+ networks, tokens, native coins, balance checking                                                                                            |
+| \*\*TON\*\*               | TON blockchain          | Wallets, jettons, TON Connect                                                                                                                   |
+| \*\*AI\*\*                | Artificial Intelligence | OpenAI, Gemini, assistants                                                                                                                      |
+| \*\*Oxapay\*\*            | Crypto payments         | Invoices, payouts, tracking                                                                                                                     |
+| \*\*Crypto\*\*            | Price data              | Real-time prices, conversions                                                                                                                   |
+| \*\*TeleGifts\*\* \*(new)\* | Telegram Gifts          | Send Stars-based gifts, catalog, history tracking                                                                                               |
+| \*\*RefLib\*\*            | Referral system         | Link generation, tracking, leaderboards                                                                                                         |
+| \*\*Webhook\*\*           | Integrations            | External callbacks, bot communication, synchronous responses                                                                                    |
 All libraries are:
 \* ✅ Pre-loaded and ready to use
 \* ✅ No installation or imports needed
