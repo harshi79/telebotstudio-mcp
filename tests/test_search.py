@@ -7,7 +7,13 @@ import threading
 import pytest
 
 from loader import Chunk
-from search import LRUCache, SearchEngine, tokenize, tokenize_with_bigrams
+from search import (
+    LRUCache,
+    SearchEngine,
+    tokenize,
+    tokenize_query,
+    tokenize_with_bigrams,
+)
 
 # ---------------------------------------------------------------------------
 # Tokenization
@@ -315,3 +321,215 @@ class TestSearchEngineEmpty:
         engine = SearchEngine([chunk], cache_size=10)
         results = engine.get_page("page")
         assert len(results) == 1
+
+
+# ---------------------------------------------------------------------------
+# RETRIEVAL-1: prompt-index sections must not dominate NL queries
+# ---------------------------------------------------------------------------
+#
+# These ranking tests run against the REAL docs/ corpus.  RETRIEVAL-1 is an
+# IDF/corpus-scale effect: in a tiny synthetic corpus a rare term like "hmac"
+# is so distinctive that the correct chunk wins regardless, so a small fixture
+# cannot reproduce (or protect against) the regression.
+
+
+PROMPT_INDEX_TITLE = "User Prompts This Pattern Solves"
+
+# Natural-language queries that reproduced RETRIEVAL-1.
+NL_QUERIES = [
+    "How do I use PIL in my TeleBot Studio bot?",
+    "How can I use OpenCV in TBS?",
+    "How do I generate or verify an HMAC signature?",
+    "How do I use AES encryption?",
+    "How do I hash data using the Security library?",
+    "How do I work with Telegram Stars?",
+    "How do I handle Telegram Gifts?",
+]
+
+
+@pytest.fixture(scope="module")
+def real_engine():
+    """SearchEngine built from the real documentation corpus."""
+    from pathlib import Path
+
+    from loader import MarkdownLoader
+
+    docs = Path(__file__).resolve().parent.parent / "docs"
+    if not docs.is_dir():
+        pytest.skip("docs/ directory not available")
+
+    chunks = MarkdownLoader(str(docs)).load()
+    if not chunks:
+        pytest.skip("docs/ corpus is empty")
+    return SearchEngine(chunks)
+
+
+class TestQueryStopwords:
+    """Query-side scaffolding removal (leaves the corpus tokenizer intact)."""
+
+    def test_drops_scaffolding_unigrams(self):
+        tokens = tokenize_query("How do I use PIL in my bot?")
+        assert "pil" in tokens
+        for scaffold in ("how", "do", "i", "my"):
+            assert scaffold not in tokens
+
+    def test_drops_all_stopword_bigrams(self):
+        tokens = tokenize_query("How do I use PIL?")
+        assert "how_do" not in tokens
+        assert "do_i" not in tokens
+
+    def test_keeps_bigrams_anchored_by_content(self):
+        """Technical multi-word identifiers must survive filtering."""
+        assert "send_message" in tokenize_query("send message")
+        assert "telegram_stars" in tokenize_query("telegram stars")
+
+    def test_pure_scaffolding_query_falls_back(self):
+        """A query with no content words must not become empty."""
+        tokens = tokenize_query("how do i")
+        assert tokens
+        assert "how" in tokens
+
+    def test_corpus_tokenizer_is_unchanged(self):
+        """tokenize_with_bigrams must stay lossless for indexing."""
+        tokens = tokenize_with_bigrams("How do I use PIL")
+        assert "how" in tokens
+        assert "how_do" in tokens
+
+
+class TestPromptIndexWeighting:
+    """The damping multiplier is applied correctly and narrowly."""
+
+    def test_prompt_index_chunks_are_damped(self):
+        chunks = [
+            Chunk(PROMPT_INDEX_TITLE, "patterns/ui/x.md", 2, "- \"How do I?\""),
+            Chunk("Real Section", "docs.md", 2, "content"),
+        ]
+        engine = SearchEngine(chunks, cache_size=10)
+        damped, normal = engine._score_weights
+
+        assert normal == pytest.approx(SearchEngine.HEADING_WEIGHTS[2])
+        assert damped == pytest.approx(
+            SearchEngine.HEADING_WEIGHTS[2] * SearchEngine.PROMPT_INDEX_WEIGHT
+        )
+        assert damped < normal
+
+    def test_ordinary_chunks_keep_plain_heading_weight(self):
+        """Non-prompt-index chunks must be completely unaffected."""
+        chunks = [
+            Chunk("Intro", "a.md", 1, "x"),
+            Chunk("Section", "a.md", 2, "y"),
+            Chunk("Method", "a.md", 3, "z"),
+        ]
+        engine = SearchEngine(chunks, cache_size=10)
+        for chunk, weight in zip(engine.chunks, engine._score_weights):
+            assert weight == pytest.approx(
+                SearchEngine.HEADING_WEIGHTS[chunk.heading_level]
+            )
+
+    def test_matching_is_case_and_whitespace_insensitive(self):
+        chunks = [Chunk(f"  {PROMPT_INDEX_TITLE.upper()}  ", "p.md", 2, "x")]
+        engine = SearchEngine(chunks, cache_size=10)
+        assert engine._score_weights[0] == pytest.approx(
+            SearchEngine.HEADING_WEIGHTS[2] * SearchEngine.PROMPT_INDEX_WEIGHT
+        )
+
+
+class TestRetrieval1Ranking:
+    """Regression tests against the real corpus."""
+
+    @pytest.mark.parametrize("query", NL_QUERIES)
+    def test_prompt_index_does_not_dominate(self, real_engine, query):
+        """No natural-language query may fill its top results with
+        unrelated "User Prompts This Pattern Solves" sections."""
+        results = real_engine.search(query, top_k=5)
+        assert results, f"no results for {query!r}"
+
+        prompt_hits = sum(
+            1 for chunk, _ in results if chunk.title == PROMPT_INDEX_TITLE
+        )
+        assert prompt_hits <= 1, (
+            f"{prompt_hits}/5 prompt-index chunks dominate {query!r}"
+        )
+
+    @pytest.mark.parametrize(
+        ("query", "expected_source"),
+        [
+            (
+                "How do I generate or verify an HMAC signature?",
+                "tbs-libraries.md",
+            ),
+            (
+                "How do I handle Telegram Gifts?",
+                "telebot-studio-v1.1.0",
+            ),
+            (
+                "How do I use PIL in my TeleBot Studio bot?",
+                "tbs-media-libraries-pil",
+            ),
+        ],
+    )
+    def test_relevant_documentation_ranks_first(
+        self, real_engine, query, expected_source
+    ):
+        """The documentation that actually answers the question must lead."""
+        results = real_engine.search(query, top_k=3)
+        assert results
+        sources = [chunk.file for chunk, _ in results]
+        assert any(expected_source in src for src in sources), (
+            f"{expected_source} missing from top-3 for {query!r}: {sources}"
+        )
+
+    @pytest.mark.parametrize(
+        ("query", "expected_pattern"),
+        [
+            (
+                "How do I paginate a list with next and previous buttons?",
+                "paginated-list",
+            ),
+            ("How do I make a todo list bot?", "todo-task-manager"),
+            ("multi-step form wizard", "multi-step-form-wizard"),
+            ("referral reward system", "referral-reward-system"),
+            (
+                "admin dashboard with broadcast and maintenance mode",
+                "admin-dashboard-broadcast",
+            ),
+            ("inline keyboard navigation menu", "inline-keyboard-navigation"),
+        ],
+    )
+    def test_patterns_remain_discoverable(
+        self, real_engine, query, expected_pattern
+    ):
+        """Genuine pattern-intent queries must still surface pattern pages."""
+        results = real_engine.search(query, top_k=5)
+        assert results
+        sources = [chunk.file for chunk, _ in results]
+        assert any(expected_pattern in src for src in sources), (
+            f"pattern {expected_pattern} not discoverable: {sources}"
+        )
+
+    def test_prompt_index_sections_stay_indexed(self, real_engine):
+        """Damping must not remove prompt-index chunks from the corpus."""
+        titles = [c.title for c in real_engine.chunks]
+        assert titles.count(PROMPT_INDEX_TITLE) > 0
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "Lib.PIL",
+            "Lib.CV",
+            "signHMAC",
+            "encryptAES",
+            "sendGift",
+            "fetchBalance",
+            "TON",
+            "webhook",
+            "broadcast",
+            "scheduling",
+            "commands",
+        ],
+    )
+    def test_keyword_search_still_works(self, real_engine, query):
+        """Direct keyword/identifier lookups must be unaffected."""
+        assert real_engine.search(query, top_k=3), (
+            f"keyword query {query!r} returned nothing"
+        )

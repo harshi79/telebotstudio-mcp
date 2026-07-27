@@ -46,6 +46,10 @@ def tokenize_with_bigrams(text: str) -> list[str]:
     The README specifies: "Chunks are tokenized into lowercase unigrams
     and bigrams."  Bigrams help match multi-word API names like
     ``send_message`` or ``inline_keyboard``.
+
+    This is the *corpus* tokenizer and is intentionally lossless — every
+    document token stays in the index.  Query-side scaffolding removal is
+    handled separately by :func:`tokenize_query`.
     """
     unigrams = tokenize(text)
     bigrams = [
@@ -53,6 +57,67 @@ def tokenize_with_bigrams(text: str) -> list[str]:
         for i in range(len(unigrams) - 1)
     ]
     return unigrams + bigrams
+
+
+# Question scaffolding: the function words that make a natural-language query
+# *sound* like a question without carrying any topic meaning.  Deliberately
+# minimal — it contains only closed-class English function words and the
+# generic verbs common to "How do I ..." phrasings.  It contains NO domain
+# vocabulary, so no TeleBot Studio term can ever be filtered out.
+#
+# Why this exists: the corpus is indexed with unigrams *and* bigrams, so a
+# query like "How do I use PIL in my TeleBot Studio bot?" contributes 18
+# scaffolding tokens (``how``, ``do``, ``i``, ``how_do``, ``do_i`` ...) and
+# exactly one topical token (``pil``).  Any chunk that merely *reads* like a
+# question therefore outscores the chunk that actually answers it.  Dropping
+# scaffolding from the QUERY only (never from the index) restores topical
+# ranking while leaving stored documents untouched.
+QUERY_STOPWORDS: frozenset[str] = frozenset({
+    "a", "an", "the", "how", "do", "does", "did", "i", "me", "my", "we",
+    "our", "you", "your", "is", "are", "was", "were", "be", "can", "could",
+    "should", "would", "will", "what", "when", "where", "which", "who",
+    "why", "to", "of", "for", "with", "and", "or", "in", "on", "at", "by",
+    "from", "it", "its", "this", "that", "these", "those", "there", "here",
+    "if", "then", "than", "so", "as", "up", "out", "about", "into",
+    "use", "using", "used", "get", "make", "need",
+})
+
+
+def tokenize_query(text: str) -> list[str]:
+    """
+    Tokenize a *search query*, dropping question scaffolding.
+
+    Identical to :func:`tokenize_with_bigrams` except that:
+
+    - scaffolding unigrams (see :data:`QUERY_STOPWORDS`) are removed, and
+    - bigrams made of two scaffolding words (``how_do``, ``do_i``) are
+      dropped, while bigrams anchored by a real term (``send_message``,
+      ``telegram_stars``) are kept.
+
+    If a query consists *only* of scaffolding (e.g. ``"how do I"``), the
+    unfiltered tokens are returned so the query still matches something
+    rather than silently returning nothing.
+    """
+    unigrams = tokenize(text)
+
+    bigrams = [
+        f"{unigrams[i]}_{unigrams[i + 1]}"
+        for i in range(len(unigrams) - 1)
+        if not (
+            unigrams[i] in QUERY_STOPWORDS
+            and unigrams[i + 1] in QUERY_STOPWORDS
+        )
+    ]
+    content = [w for w in unigrams if w not in QUERY_STOPWORDS]
+
+    filtered = content + bigrams
+    if not filtered:
+        # Query was pure scaffolding — fall back to the unfiltered form.
+        return unigrams + [
+            f"{unigrams[i]}_{unigrams[i + 1]}"
+            for i in range(len(unigrams) - 1)
+        ]
+    return filtered
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +224,37 @@ class SearchEngine:
         "timeout", "refused", "denied", "not found", "invalid",
     })
 
+    # Headings whose sections are *indexes of example user questions* rather
+    # than documentation content.  In ``docs/patterns/`` every pattern page
+    # ends with a "User Prompts This Pattern Solves" section that lists
+    # question phrasings verbatim, e.g.:
+    #
+    #     - "How do I paginate a list in TeleBot Studio?"
+    #     - "How do I add next and previous buttons to a list?"
+    #
+    # Because the corpus is tokenized into unigrams *and* bigrams with no
+    # stopword filtering, these sections accumulate a dense concentration of
+    # question scaffolding (``how``, ``do``, ``i``, ``how_do``, ``do_i``,
+    # ``telebot_studio``).  Any question-shaped query therefore matches them
+    # on a dozen or more tokens regardless of topic, so they outrank the
+    # reference documentation that actually answers the question.
+    #
+    # These sections are still useful — they describe what a pattern solves —
+    # so they remain fully indexed and retrievable.  They are simply damped
+    # so that genuine documentation outranks them on generic questions, while
+    # a query that really targets the pattern (which also matches the page's
+    # topical terms) still surfaces it.
+    PROMPT_INDEX_HEADINGS: frozenset[str] = frozenset({
+        "user prompts this pattern solves",
+    })
+
+    # Damping multiplier applied to prompt-index sections.  Chosen empirically:
+    # the smallest reduction that removes these chunks from the top of every
+    # reproducing natural-language query, while keeping every pattern page
+    # discoverable by its own pattern-intent query.  Stronger damping (<=0.35)
+    # begins to hide legitimate pattern results.
+    PROMPT_INDEX_WEIGHT: ClassVar[float] = 0.5
+
     # Heading level -> score multiplier (applied after BM25 scoring).
     # Higher structural importance (H1 page titles) gets a larger boost.
     # H4-H6 entries are provided for forward compatibility; the loader
@@ -194,6 +290,19 @@ class SearchEngine:
         self._chunk_to_idx: dict[int, int] = {
             id(chunk): i for i, chunk in enumerate(chunks)
         }
+
+        # Pre-compute the per-chunk score multiplier: heading weight, damped
+        # for "prompt index" sections (see PROMPT_INDEX_HEADINGS).  Computed
+        # once at construction so scoring stays a simple lookup.
+        self._score_weights: list[float] = [
+            self.HEADING_WEIGHTS.get(chunk.heading_level, 1.0)
+            * (
+                self.PROMPT_INDEX_WEIGHT
+                if chunk.title.strip().lower() in self.PROMPT_INDEX_HEADINGS
+                else 1.0
+            )
+            for chunk in chunks
+        ]
 
         # Pre-compute category flags for each chunk (for scoped search)
         self._chunk_flags: list[dict[str, bool]] = []
@@ -257,7 +366,7 @@ class SearchEngine:
         if cached is not None:
             return cached
 
-        tokens = tokenize_with_bigrams(query)
+        tokens = tokenize_query(query)
         if not tokens:
             return []
 
@@ -265,9 +374,7 @@ class SearchEngine:
 
         # Apply heading weights to BM25 scores
         weighted_scores = [
-            float(scores[i]) * self.HEADING_WEIGHTS.get(
-                self.chunks[i].heading_level, 1.0
-            )
+            float(scores[i]) * self._score_weights[i]
             for i in range(len(scores))
         ]
 
@@ -453,7 +560,10 @@ class SearchEngine:
                 # Boost score if title also matches
                 title_lower = chunk.title.lower()
                 title_boost = any(kw in title_lower for kw in title_keywords)
-                heading_weight = self.HEADING_WEIGHTS.get(chunk.heading_level, 1.0)
+                # Same per-chunk weight used by search(): heading weight with
+                # prompt-index damping.  Identical to the heading weight for
+                # every chunk that is not a prompt-index section.
+                heading_weight = self._score_weights[chunk_idx]
                 # Title boost and heading weight stack multiplicatively
                 boosted_score = score * (1.5 if title_boost else 1.0) * heading_weight
                 flagged.append((chunk, boosted_score))
