@@ -56,8 +56,8 @@ def register_command_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = CommandManager(client).create(bid, command, code)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = CommandManager(client).create(bid, command, code)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -88,8 +88,8 @@ def register_command_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                info = CommandManager(client).get(bid, command_name)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            info = CommandManager(client).get(bid, command_name)
             return _success_response(info.to_dict())
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -137,8 +137,8 @@ def register_command_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = CommandManager(client).update(bid, command_name, code)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = CommandManager(client).update(bid, command_name, code)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -184,8 +184,8 @@ def register_command_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = CommandManager(client).delete(bid, command_name)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = CommandManager(client).delete(bid, command_name)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -215,8 +215,8 @@ def register_command_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                commands = CommandManager(client).list_all(bid)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            commands = CommandManager(client).list_all(bid)
             return _success_response(
                 [c.to_dict() for c in commands],
                 total=len(commands),

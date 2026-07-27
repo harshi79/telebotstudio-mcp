@@ -69,30 +69,30 @@ class Executor:
         results: list[StepResult] = []
         created_bot_id: str | None = CredentialManager.get_bot_id()
 
-        with TeleBotStudioClient(api_key=key) as client:
-            bot_mgr = BotManager(client)
-            cmd_mgr = CommandManager(client)
-            control_mgr = BotControlManager(client)
+        client = TeleBotStudioClient.from_pool(api_key=key)
+        bot_mgr = BotManager(client)
+        cmd_mgr = CommandManager(client)
+        control_mgr = BotControlManager(client)
 
-            for i, step in enumerate(plan.steps):
-                step_result = Executor._execute_step(
-                    step=step,
-                    bot_mgr=bot_mgr,
-                    cmd_mgr=cmd_mgr,
-                    control_mgr=control_mgr,
-                    bot_id=created_bot_id,
-                )
-                results.append(step_result)
+        for i, step in enumerate(plan.steps):
+            step_result = Executor._execute_step(
+                step=step,
+                bot_mgr=bot_mgr,
+                cmd_mgr=cmd_mgr,
+                control_mgr=control_mgr,
+                bot_id=created_bot_id,
+            )
+            results.append(step_result)
 
-                # If this was create_bot and it succeeded, capture the bot_id
-                if step.action == "create_bot" and step_result.success:
-                    created_bot_id = step_result.data
-                    # Also store in session for subsequent operations
-                    CredentialManager.set_bot_id(created_bot_id)
+            # If this was create_bot and it succeeded, capture the bot_id
+            if step.action == "create_bot" and step_result.success:
+                created_bot_id = step_result.data
+                # Also store in session for subsequent operations
+                CredentialManager.set_bot_id(created_bot_id)
 
-                # Rate-limit pause between steps (skip after last step)
-                if i < len(plan.steps) - 1:
-                    Executor._rate_limit_pause()
+            # Rate-limit pause between steps (skip after last step)
+            if i < len(plan.steps) - 1:
+                Executor._rate_limit_pause()
 
         succeeded = sum(1 for r in results if r.success)
         failed = sum(1 for r in results if not r.success)

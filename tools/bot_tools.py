@@ -49,8 +49,8 @@ def register_bot_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                info = BotManager(client).create(bot_token)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            info = BotManager(client).create(bot_token)
 
             # Auto-set the new bot as active
             CredentialManager.set_bot_id(info.botid)
@@ -95,8 +95,8 @@ def register_bot_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = BotManager(client).delete(bid)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = BotManager(client).delete(bid)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -147,8 +147,8 @@ def register_bot_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = BotManager(client).update_token(bid, new_token)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = BotManager(client).update_token(bid, new_token)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)

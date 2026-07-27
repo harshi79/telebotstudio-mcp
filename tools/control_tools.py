@@ -46,8 +46,8 @@ def register_control_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = BotControlManager(client).start(bid)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = BotControlManager(client).start(bid)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -77,8 +77,8 @@ def register_control_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = BotControlManager(client).stop(bid)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = BotControlManager(client).stop(bid)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
@@ -108,8 +108,8 @@ def register_control_tools(mcp: FastMCP) -> None:
             )
 
         try:
-            with TeleBotStudioClient(api_key=api_key) as client:
-                msg = BotControlManager(client).restart(bid)
+            client = TeleBotStudioClient.from_pool(api_key=api_key)
+            msg = BotControlManager(client).restart(bid)
             return _success_response(msg)
         except TeleBotStudioError as e:
             return _error_response(e.error_category, e.message)
