@@ -42,10 +42,10 @@ api\_key=None,
 \*\*\*
 ## Broadcast Limits and Constraints
 ### Per-Bot Limits
-\* \*\*Maximum simultaneous broadcasts per bot:\*\* 2
+\* \*\*Maximum simultaneous broadcasts per bot:\*\* 3 (updated in v1.1.0)
 \* \*\*Users:\*\* All bot users receive the broadcast
 ### Global Limits
-\* \*\*Maximum simultaneous broadcasts globally:\*\* 1000
+\* \*\*Maximum simultaneous broadcasts globally:\*\* 5000 (updated in v1.1.0)
 ### Validation
 \* Command must exist in the bot
 \* Function must be from allowed list
@@ -288,6 +288,14 @@ Api.sendMessage("Broadcast paused successfully")
 ```
 \*\*Note:\*\* Paused broadcasts can be resumed manually from the dashboard.
 \*\*\*
+### Bot.broadcastProgress()
+Live progress: `Bot.broadcastProgress(broadcast_id)`.
+### Bot.updateBroadcastSpeed()
+Adjust speed: `Bot.updateBroadcastSpeed(broadcast_id, speed=15)`.
+### Bot.stopBroadcast()
+Stop (keep record): `Bot.stopBroadcast(broadcast_id)`.
+### Bot.sendCloneBroadcast()
+Re-run previous: `Bot.sendCloneBroadcast(broadcast_id)`.
 ### Bot.cancelBroadcast()
 Cancels and removes a broadcast.
 \*\*Syntax:\*\*
