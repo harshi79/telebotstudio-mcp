@@ -2,5 +2,5 @@
 -r requirements.txt
 
 pytest>=9.1.1,<10.0.0
-ruff>=0.8.0,<1.0.0
+ruff>=0.16.1,<1.0.0
 mypy>=2.3.0,<3.0.0
