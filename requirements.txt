@@ -8,5 +8,5 @@ httpx>=0.28.1,<1.0.0
 # Documentation crawler utilities (optional — only needed for doc updates)
 beautifulsoup4>=4.15.0,<5.0.0
 requests>=2.32.3,<3.0.0
-lxml>=6.1.1,<7.0.0
+lxml>=6.1.2,<7.0.0
 markdownify>=0.14.1,<2.0.0
