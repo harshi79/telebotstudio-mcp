@@ -8,6 +8,6 @@ updates:
     allow:
       - dependency-type: all
     reviewers:
-      - telebotstudio
+      - harshi79
     labels:
       - dependencies

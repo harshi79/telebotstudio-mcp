@@ -2,6 +2,12 @@
 
 Core bot infrastructure — patterns for bot internals, state management, and cross-cutting concerns.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [Conversation State Machine with TTL & Rate Guard](conversation-state-machine-guard.md) | `/ticket`, `/cancel`, `*`, `/handler_callback_query` | Structured session envelope with automatic inactivity TTL expiry, per-user cooldown rate limiting, slash-command escape, and `StopExecution`-safe `Bot.errorID()` error boundary |
+
 ## What Belongs Here
 
 - State machines and conversation state tracking

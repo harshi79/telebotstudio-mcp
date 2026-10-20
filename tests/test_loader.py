@@ -199,3 +199,36 @@ class TestLoaderEdgeCases:
         chunks = loader.load()
         assert chunks[0].file == "a-first.md"
         assert chunks[1].file == "z-last.md"
+
+    def test_empty_parent_heading_merged_into_child_section(self, tmp_path):
+        """Heading with no body before a child heading should not emit a stub chunk."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "nested.md").write_text(
+            "# Doc Title\n\n## Parent Category\n\n### Concrete Topic\n\nDetailed body text here.\n",
+            encoding="utf-8",
+        )
+        loader = MarkdownLoader(str(docs))
+        chunks = loader.load()
+        assert len(chunks) == 1
+        assert chunks[0].title == "Concrete Topic"
+        assert chunks[0].heading_level == 3
+        assert "# Doc Title" in chunks[0].content
+        assert "## Parent Category" in chunks[0].content
+        assert "Detailed body text here." in chunks[0].content
+
+    def test_yaml_frontmatter_merged_with_first_heading(self, tmp_path):
+        """YAML frontmatter should stay attached to the first heading chunk."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "pattern.md").write_text(
+            "---\ntitle: Demo Pattern\ncategory: ui\n---\n\n# Demo Pattern\n\nPattern overview text.\n",
+            encoding="utf-8",
+        )
+        loader = MarkdownLoader(str(docs))
+        chunks = loader.load()
+        assert len(chunks) == 1
+        assert chunks[0].title == "Demo Pattern"
+        assert chunks[0].heading_level == 1
+        assert "Pattern overview text." in chunks[0].content
+

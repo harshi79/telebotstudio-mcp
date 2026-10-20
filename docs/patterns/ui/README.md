@@ -2,6 +2,14 @@
 
 User-facing interaction patterns — how bots present information and collect input from users.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [Inline Keyboard Navigation System](inline-keyboard-navigation.md) | `/menu`, `/handler_callback_query` | Multi-level nested menu navigation with history stack, home/back actions, and `nav_`/`sys_`/`act_` callback prefixes |
+| [Multi-Step Form Wizard](multi-step-form-wizard.md) | `/form`, `*`, `/handler_callback_query` | 3-step conversational form wizard with `/cancel` abort and summary review before saving |
+| [Paginated List with Next/Prev Navigation](paginated-list.md) | `/list`, `/handler_callback_query` | Smooth `editMessageText` pagination with page counter indicator and boundary clamping |
+
 ## What Belongs Here
 
 - Inline keyboard menus and navigation

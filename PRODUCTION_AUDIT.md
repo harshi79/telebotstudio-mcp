@@ -109,3 +109,17 @@
 **I would personally approve this repository for public open-source release.**
 
 The codebase is well-architected, properly typed, and handles edge cases correctly. The 4 known limitations are documented and acceptable for an initial release. The main gap is the lack of an automated test suite, which should be the top priority for the next release cycle.
+
+---
+
+## Post-Audit Hardening & Release Log (v2.1.0 → v2.2.0, October 2026)
+
+All 4 post-audit follow-up items and test coverage gaps identified in the original 2025-07-01 review have since been resolved in production code and verified by CI:
+
+| Area | Original Audit Gap | Current Implementation (`v2.2.0`) |
+|---|---|---|
+| **HTTP Session Isolation** | No per-client session isolation in HTTP mode | **RESOLVED** — `_SessionMiddleware` (`server.py`) extracts `X-Session-ID` headers per request into both `contextvars.ContextVar` (async task isolation) and `threading.local` (`api/session.py`), clearing task context in `finally`. |
+| **HTTP Connection Pooling** | New `httpx.Client` per tool call | **RESOLVED** — Thread-safe `ConnectionPool` (`api/client.py`) keyed by `SHA-256(api_key)` with LRU cap (100 tenants), 300s idle timeout eviction, `atexit` shutdown hook, and live `/health` `pool_stats` telemetry; wired across `tools/*` and `agent/executor.py`. |
+| **Automated Test Suite & CI** | Manual verification only (70/100) | **RESOLVED** — **300 automated Pytest tests** across 12 test modules (`tests/`), fully mocked & offline, enforced alongside `ruff check .` and `mypy` (27 files, 0 issues) in GitHub Actions (`.github/workflows/ci.yml`). |
+| **Search & Corpus Quality** | 18 raw scraped pages; unescaped GitBook artifacts & stub chunks | **RESOLVED** — Expanded to **39 validated Markdown pages / 835 chunks** covering TeleBot Studio **v1.1.0** (`Lib.PIL`, `Lib.CV`, `Lib.Security`, `Lib.TeleGifts`, `Lib.EVM`, `Lib.TON`, `RefLib`, `Bot.setWebhookResponse`, `fallback_command`) + **9 runnable patterns across all 7 categories** (`docs/patterns/`). Eliminated 10,753 GitBook backslash escapes, fixed live-API discrepancies directly inside `docs/readme.md`, enabled subdirectory retrieval in `get_page()`, added query-scaffolding stopword filtering + heading weights + metadata damping, and achieved **0 warnings** on `python build_index.py --validate`. |
+

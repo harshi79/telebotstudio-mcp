@@ -2,6 +2,12 @@
 
 Bot owner and operator tools — patterns for managing bots, users, and content at scale.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [Admin Dashboard with Broadcast & Maintenance Mode](admin-dashboard-broadcast.md) | `/admin`, `/start`, `*`, `/handler_callback_query` | Owner-only admin control panel with real-time user statistics, media-preserving forward broadcasts, and global maintenance mode lock |
+
 ## What Belongs Here
 
 - Admin dashboards and control panels

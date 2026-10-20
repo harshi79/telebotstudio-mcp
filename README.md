@@ -9,6 +9,7 @@
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-8A2BE2?style=flat-square&logo=modelcontextprotocol&logoColor=white)](https://modelcontextprotocol.io)
 [![FastMCP](https://img.shields.io/badge/Powered_by-FastMCP-005A9C?style=flat-square)](https://github.com/jlowin/fastmcp)
 [![26 Tools](https://img.shields.io/badge/Tools-26-FF6F00?style=flat-square)]()
+[![300 Tests](https://img.shields.io/badge/Tests-300_passing-2EA043?style=flat-square)]()
 [![Live API Validated](https://img.shields.io/badge/Live_API-Validated-2EA043?style=flat-square)]()
 
 Documentation Search · Official REST API · AI Agent Pipeline · 26 MCP Tools · Production Ready
@@ -84,12 +85,12 @@ This pipeline is what powers `tbs_deploy_bot`, `tbs_setup_commands`, and the bat
 
 | | what you get |
 |:---|:---|
-| **documentation** | BM25 full-text search, heading-aware chunking, unigram + bigram tokenization, 5 scoped search modes, LRU caching, 100% offline |
-| **bot management** | create / delete / update bots, create / update / delete / list commands, start / stop / restart bots |
-| **agent pipeline** | Planner → Validator → Preview → Executor for multi-step operations like full bot deployment |
-| **batch operations** | bulk create or delete commands with per-step success/failure reporting |
-| **safety** | preview-before-execute for destructive ops, session-scoped credentials (never persisted), token masking |
-| **server** | FastMCP, STDIO + HTTP/streamable-http transports, `/health` endpoint, thread-safe sessions, retry with backoff |
+| **documentation** | BM25 full-text search across **39 pages / 835 validated chunks** (official TeleBot Studio v1.1.0 docs + 9 runnable patterns across 7 categories), heading-weighted scoring (`H1 > H2 > H3`), natural-language query stopword filtering, unigram + bigram tokenization, 5 scoped search modes, thread-safe LRU cache (256 entries), 100% offline |
+| **bot management** | create / delete / update bots, create / update / delete / get / list commands, start / stop / restart bots across all 11 REST API v2 endpoints |
+| **agent pipeline** | Planner → Validator → Preview → Executor for multi-step operations like full bot deployment (`tbs_deploy_bot`, `tbs_setup_commands`) |
+| **batch operations** | bulk create or delete commands with rate-limit pacing and per-step success/failure reporting |
+| **safety** | preview-before-execute for destructive ops, memory-only session credentials (never persisted), `X-Session-ID` multi-tenant isolation, token masking |
+| **server** | FastMCP, STDIO + HTTP/streamable-http transports, persistent HTTP Keep-Alive `ConnectionPool` (100 tenants, 300s idle eviction), `/health` telemetry endpoint, retry with exponential backoff |
 
 ---
 
@@ -168,7 +169,7 @@ For detailed per-OS instructions, see [local installation](#local-installation).
    You should see:
 
    ```
-   ✓ All 918 chunks validated successfully.
+   ✓ All 835 chunks validated successfully.
    ```
 
 7. **Run the server**
@@ -792,19 +793,19 @@ This two-step pattern exists because AI assistants can misinterpret intent. "Rem
 
 ### documentation engine internals
 
-1. **Loading** — `MarkdownLoader` reads every `.md` file in `docs/` recursively (including subdirectories like `docs/patterns/`) and splits each file into chunks at heading boundaries (H1, H2, H3). It never splits mid-paragraph or mid-code-block.
-2. **Tokenization** — each chunk is tokenized into lowercase unigrams and bigrams. `send_message` becomes `send`, `message`, and `send_message`, which helps match multi-word API names.
-3. **Indexing** — tokens are fed into BM25Okapi, which computes term frequencies and document lengths for ranking.
-4. **Searching** — queries are tokenized the same way, and BM25 scores every chunk. The top-k results are returned with their scores.
-5. **Caching** — results are cached in an LRU cache (256 entries) so repeated queries return instantly.
+1. **Loading & Heading Chunking** — `MarkdownLoader` scans `docs/` recursively (including all 7 categories under `docs/patterns/`) using an explicit CommonMark ATX heading parser that respects fenced code blocks (` ``` `). It splits on `H1`–`H3` while keeping `H4`–`H6` inside parent sections, and merges YAML frontmatter or empty parent headings into the first child section so zero hollow stub chunks exist.
+2. **Corpus & Query Tokenization** — chunks are indexed losslessly into lowercase unigrams and bigrams (`send_message` → `send`, `message`, `send_message`, preserving `.` and `_` in identifiers like `Lib.TON.get_jetton_wallet_address`). At search time, `tokenize_query()` strips question scaffolding stopwords (`"how do I..."`) so topical terms drive ranking.
+3. **Structural Weighting & Metadata Damping** — raw BM25Okapi scores are multiplied by structural heading weights (`H1: 1.4x`, `H2: 1.2x`, `H3: 1.1x`), while pattern prompt/keyword index sections (`PROMPT_INDEX_HEADINGS`) receive a `0.5x` damping factor so full documentation and working code outrank keyword lists. Scoped tools (`search_api`, `search_functions`, `search_library`, `search_errors`, `search_examples`) additionally apply pre-computed category filters and a `1.5x` title match boost.
+4. **Top-K Extraction & Caching** — `heapq.nlargest` extracts positive top-k matches in `O(n + k log n)` time, and results are stored in a thread-safe 256-entry `LRUCache`.
+5. **Direct Page Retrieval** — `get_page(name)` resolves top-level pages and nested pattern paths (e.g. `tbs-libraries.md` or `patterns/integrations/webhook-hmac-sync-response.md`) safely through path-traversal sanitization.
 
 ### api engine internals
 
-1. **Authentication** — your API key is stored in the session manager. Every outgoing request gets an `Authorization: Bearer <key>` header.
-2. **Request** — `TeleBotStudioClient` sends the request using httpx with a 30-second timeout.
-3. **Retry** — on 5xx or timeout, the client retries up to 3 times with exponential backoff (1s, 2s, 4s). It does not retry 4xx errors.
-4. **Error mapping** — HTTP status codes are mapped to typed exceptions: 401 → `AuthenticationError`, 404 → `ResourceNotFoundError`, 400 → `ValidationError`, 429 → `RateLimitError`, 5xx → `ServerError`.
-5. **Response** — parsed into an `ApiResponse` object with the result, status code, and rate-limit headers.
+1. **Authentication** — your API key lives in `CredentialManager` (memory-only). Outgoing requests attach `Authorization: Bearer <key>` over HTTPS.
+2. **Connection Pooling** — `TeleBotStudioClient.from_pool()` reuses persistent HTTP Keep-Alive `httpx.Client` connections keyed by `SHA-256(api_key)` in a thread-safe LRU pool (max 100 tenants, 300-second idle eviction, closed gracefully via `atexit` and shutdown `finally`).
+3. **Request & Async-Safe Retry** — requests use a 30-second timeout and retry transient `5xx` responses or timeouts up to 3 attempts with exponential backoff (`1s`, `2s`, `4s`) via event-loop-safe `async_sleep`. `4xx` errors fail fast without retrying.
+4. **Error Mapping** — HTTP status codes map to typed exceptions: `400 → ValidationError`, `401 → AuthenticationError`, `404 → ResourceNotFoundError`, `429 → RateLimitError`, `5xx → ServerError`, network failures → `TbsConnectionError`.
+5. **Response** — normalized across endpoint payload shapes (`result`, `commands`, `command`) into `ApiResponse` dataclasses including `X-RateLimit-Remaining` and `X-RateLimit-Reset` metadata.
 
 ---
 
@@ -812,73 +813,76 @@ This two-step pattern exists because AI assistants can misinterpret intent. "Rem
 
 ```
 telebotstudio-mcp/
-├── server.py              entry point — FastMCP server, doc tools, /health
-├── loader.py              markdown loader & heading-aware chunking
-├── search.py              BM25 index builder & search engine
-├── build_index.py         CLI diagnostic tool
-├── crawler.py             documentation crawler
-├── download_docs.py       documentation downloader
+├── server.py              entry point — FastMCP server, _SessionMiddleware, doc tools, /health
+├── loader.py              markdown loader, CommonMark heading parser & frontmatter handling
+├── search.py              BM25 index builder, query stopword filter & scoped search engine
+├── build_index.py         CLI index builder, search tester & chunk validator
+├── crawler.py             official documentation site URL crawler
+├── download_docs.py       documentation downloader & GitBook Markdown sanitizer
 ├── api/
-│   ├── __init__.py        public API exports
-│   ├── auth.py            input validation (API key, bot token, command names)
-│   ├── client.py          HTTP client with retry, timeout, error mapping
-│   ├── errors.py          typed exception hierarchy
-│   ├── models.py          request/response dataclasses
-│   ├── session.py         thread-safe credential manager
-│   ├── bots.py            bot management wrapper
-│   ├── commands.py        command management wrapper
-│   ├── bot_control.py     start / stop / restart wrapper
-│   └── utils.py           shared utilities (token masking)
+│   ├── __init__.py        public API layer exports
+│   ├── auth.py            input validation (API key, bot token, bot ID, commands)
+│   ├── client.py          ConnectionPool + HTTP client with retry, timeout & error mapping
+│   ├── errors.py          typed exception hierarchy (TeleBotStudioError subclasses)
+│   ├── models.py          typed request/response/plan/batch dataclasses
+│   ├── session.py         thread-safe & async-safe (contextvars + TLS) CredentialManager
+│   ├── bots.py            bot management wrapper (create, delete, update_token)
+│   ├── commands.py        command CRUD & list wrapper
+│   ├── bot_control.py     bot lifecycle wrapper (start, stop, restart)
+│   └── utils.py           credential masking & event-loop-safe sleep utilities
 ├── agent/
-│   ├── __init__.py        agent layer exports
-│   ├── planner.py         decompose goals into execution plans
-│   ├── validator.py       validate plans against session state
-│   ├── preview.py         generate human-readable plan previews
-│   └── executor.py        execute plans with rate-limit awareness
+│   ├── __init__.py        agent pipeline exports
+│   ├── planner.py         decompose high-level goals into ExecutionPlans
+│   ├── validator.py       validate plans & step dependencies before execution
+│   ├── preview.py         generate masked, non-mutating previews
+│   └── executor.py        sequential executor with rate-limit pacing & per-step reporting
 ├── tools/
 │   ├── __init__.py
-│   ├── api_tools.py       core API MCP tools
-│   ├── agent_tools.py     deploy & setup MCP tools
-│   ├── batch_tools.py     batch operation MCP tools
-│   ├── bot_tools.py       bot management MCP tools
-│   ├── command_tools.py   command management MCP tools
-│   ├── control_tools.py   bot control MCP tools
-│   ├── credential_tools.py credential MCP tools
-│   └── helpers.py         shared tool utilities
-├── tests/                 pytest suite (244 tests)
-<<<<<<< HEAD
-├── docs/                  official TeleBot Studio documentation (.md)
-=======
-├── docs/
-│   ├── *.md               official TeleBot Studio documentation
-│   └── patterns/           implementation pattern knowledge base
-│       ├── README.md       pattern index and standards
-│       ├── TEMPLATE.md     standard pattern template
-│       ├── ui/             user-facing interaction patterns
-│       ├── admin/          bot owner tool patterns
-│       ├── systems/        core infrastructure patterns
-│       ├── commerce/       payment & referral patterns
-│       ├── storage/        data persistence patterns
-│       ├── integrations/   external service patterns
-│       └── utilities/      reusable helper patterns
->>>>>>> c15d897 (docs: synchronize README and project metadata)
-├── Dockerfile             container definition
-├── .dockerignore          Docker build exclusions
-├── requirements.txt       Python dependencies
-├── LICENSE                MIT License
-└── README.md              this file
+│   ├── api_tools.py       central registrar for all 18 API MCP tools
+│   ├── agent_tools.py     tbs_deploy_bot & tbs_setup_commands tools
+│   ├── batch_tools.py     tbs_batch_create_commands & tbs_batch_delete_commands tools
+│   ├── bot_tools.py       tbs_create_bot, tbs_delete_bot & tbs_update_bot_token tools
+│   ├── command_tools.py   command CRUD & list MCP tools (5 tools)
+│   ├── control_tools.py   tbs_start_bot, tbs_stop_bot & tbs_restart_bot tools
+│   ├── credential_tools.py tbs_set_api_key, tbs_set_bot_id & tbs_credential_status tools
+│   └── helpers.py         shared JSON response & credential lookup helpers
+├── docs/                  39 Markdown pages (835 validated chunks)
+│   ├── *.md               official TeleBot Studio v1.1.0 & REST API v2 documentation (20 pages)
+│   └── patterns/          runnable TBS implementation pattern library (9 patterns, 7 categories)
+│       ├── README.md      pattern catalog and standards
+│       ├── TEMPLATE.md    standard pattern authoring template
+│       ├── ui/            inline navigation, form wizard & paginated list patterns (3)
+│       ├── admin/         admin dashboard, broadcast & maintenance lock pattern (1)
+│       ├── systems/       conversation state machine with TTL & rate guard pattern (1)
+│       ├── commerce/      deep-link referral & reward system pattern (1)
+│       ├── storage/       per-user CRUD profile storage pattern (1)
+│       ├── integrations/  HMAC webhook receiver & async API callback pattern (1)
+│       └── utilities/     dynamic todo checklist manager pattern (1)
+├── tests/                 offline Pytest suite (300 tests across 12 modules)
+├── .github/               GitHub Actions CI workflow, Dependabot & Issue/PR templates
+├── pyproject.toml         project metadata, pytest, ruff & mypy configuration
+├── requirements.txt       production runtime dependencies
+├── requirements-dev.txt   development, lint, type-check & test dependencies
+├── Dockerfile             non-root production container definition with HEALTHCHECK
+├── .dockerignore          Docker build exclusions (retains docs/)
+├── CONTRIBUTING.md        contributor workflow & pattern authoring guide
+├── SECURITY.md            security policy & session isolation architecture
+├── CODE_OF_CONDUCT.md     Contributor Covenant Code of Conduct
+├── PRODUCTION_AUDIT.md    production release security & architecture audit log
+└── LICENSE                MIT License
 ```
 
 ---
 
 ## configuration
 
-### transport modes
+### transport modes & cli options
 
 **STDIO** — default, for local AI clients:
 
 ```bash
 python server.py
+python server.py --docs-dir /custom/path/to/docs
 ```
 
 The server communicates with the AI client through standard input and output. This is the mode you use with Claude Desktop, Cursor, and other local editors.
@@ -889,15 +893,26 @@ The server communicates with the AI client through standard input and output. Th
 python server.py --transport http --host 0.0.0.0 --port 9000
 ```
 
-The server listens for HTTP requests and speaks the MCP protocol over streamable-http. This is the mode you use for Render deployment or any remote client.
+The server listens for HTTP requests on `/mcp` and speaks MCP over `streamable-http`, wrapped with `_SessionMiddleware` for `X-Session-ID` per-tenant credential isolation.
 
-### environment variables
+### index & corpus diagnostic cli (`build_index.py`)
 
-| variable | default | purpose |
-|:---|:---|:---|
-| `TBS_DOCS_DIR` | `docs` | override the documentation directory |
-| `HOST` | `0.0.0.0` | default host for HTTP mode |
-| `PORT` | `8000` | default port for HTTP mode (Render sets this automatically) |
+```bash
+python build_index.py --validate                           # Validate all chunks (0 warnings expected)
+python build_index.py --list                               # List all 39 indexed pages
+python build_index.py --search "verifyHMAC" --top-k 5      # Run a BM25 query from terminal
+python build_index.py --search "sendGift" --scope examples # Run a scoped query
+python build_index.py --page patterns/ui/paginated-list.md # Inspect all chunks in a page
+```
+
+### environment variables & headers
+
+| name | type | default | purpose |
+|:---|:---|:---|:---|
+| `TBS_DOCS_DIR` | env var | `docs` | override the documentation directory |
+| `HOST` | env var | `0.0.0.0` | default host for HTTP mode |
+| `PORT` | env var | `8000` | default port for HTTP mode (Render sets this automatically) |
+| `X-Session-ID` | HTTP header | *(none)* | optional per-client session identifier in HTTP mode for multi-tenant credential isolation |
 
 ---
 
@@ -975,20 +990,30 @@ docker run -p 9000:9000 -e PORT=9000 telebotstudio-mcp
 
 ### health check
 
-`GET /health` returns `{"status": "ok"}`. This endpoint lives outside the MCP protocol and requires no authentication. Suitable for UptimeRobot, Render health checks, or any uptime monitor.
+`GET /health` returns operational status plus live session and connection-pool telemetry without authentication:
+
+```json
+{
+  "status": "ok",
+  "session_count": 0,
+  "pool_stats": {
+    "pool_size": 100,
+    "active_clients": 0,
+    "idle_timeout": 300.0
+  }
+}
+```
+
+Suitable for UptimeRobot, Docker `HEALTHCHECK`, Render health checks, or any uptime monitor.
 
 ---
 
 ## live api validation
 
-Every REST API endpoint in this project was verified against the live TeleBot Studio API. Where the official documentation diverged from actual API behavior, the implementation follows the live API — not the docs.
+Every REST API endpoint in this project was verified against the live TeleBot Studio API. Where the upstream GitBook documentation originally diverged from actual API behavior, **both the Python client (`api/commands.py`) and the bundled `docs/readme.md` reference** reflect the verified live API:
 
-Known discrepancies that were identified and handled:
-
-- The documented `GET` method for `/command/by-name` returns 405 — the live API accepts `POST` with a JSON body
-- The documented `GET /bots/{botid}/commands` endpoint is used for creating commands — the actual list endpoint is `GET /bots/{botid}/commands/list`
-
-These are reflected in the code and tested against production.
+- `/v2/bots/{botid}/command/by-name` accepts `POST` with a JSON body `{"command_name": "..."}` (`GET` returns `405 Method Not Allowed`)
+- Listing commands uses `GET /v2/bots/{botid}/commands/list` (`POST /v2/bots/{botid}/commands` creates commands)
 
 ---
 
@@ -996,12 +1021,12 @@ These are reflected in the code and tested against production.
 
 ### how credentials are stored
 
-When you call `tbs_set_api_key` or `tbs_set_bot_id`, the values are stored in a Python class called `CredentialManager`. This class holds credentials in regular Python variables — nothing is written to the filesystem, nothing goes into a database, nothing appears in log files.
+When you call `tbs_set_api_key` or `tbs_set_bot_id`, the values are stored in a Python class called `CredentialManager`. This class holds credentials in memory only — nothing is written to the filesystem, nothing goes into a database, nothing appears in log files.
 
-- **STDIO mode (single user):** credentials are stored as class-level variables. There's only one session, so one set of credentials.
-- **HTTP mode (potentially multi-user):** credentials are stored in a per-session dictionary, keyed by a session ID stored in thread-local storage. Each thread (each HTTP request) can have its own session with its own credentials.
+- **STDIO mode (single user):** credentials are stored in lock-protected class variables scoped to the local MCP server subprocess.
+- **HTTP mode (multi-session support):** `_SessionMiddleware` extracts the `X-Session-ID` HTTP request header and binds the session ID to both `contextvars.ContextVar` (async task isolation) and `threading.local` (worker thread fallback). Each distinct `X-Session-ID` has an isolated credential dictionary. If no `X-Session-ID` header is sent, requests fall back to the shared default store.
 
-All access to the credential store is protected by a `threading.Lock`, so concurrent requests can't corrupt each other's data.
+All access to the credential store is protected by a `threading.Lock`, and context variables are reset after each request completes so concurrent requests cannot leak state across tasks.
 
 ### session-based storage
 
@@ -1206,9 +1231,9 @@ Yes. Run `python server.py --transport http` and the server reads the `PORT` env
 <details>
 <summary>is my api key safe?</summary>
 
-Your API key is stored in server memory only — never written to disk, never logged in cleartext. It is transmitted over HTTPS to `api.telebotstudio.com` and is lost when the server restarts.
+Your API key is stored in server memory only — never written to disk, never logged in cleartext. It is transmitted over HTTPS to `api.telebotstudio.com`, pooled connections are keyed by `SHA-256(api_key)`, and all credentials are wiped when the server restarts.
 
-For multi-user HTTP deployments, note that FastMCP's streamable-http transport does not currently expose a per-client session identifier. All HTTP clients share a global credential store. This is fine for single-user deployments but not for multi-tenant environments.
+For multi-user HTTP deployments, `_SessionMiddleware` isolates credentials whenever clients or a reverse proxy supply a unique `X-Session-ID` request header per user. Requests without an `X-Session-ID` header share the fallback default store, so public multi-tenant deployments should inject `X-Session-ID` at the gateway layer.
 
 </details>
 
@@ -1244,60 +1269,73 @@ All 11 endpoints from the TeleBot Studio REST API v2:
 
 ## development
 
+### running checks locally
+
+```bash
+pip install -r requirements-dev.txt
+python build_index.py --validate
+ruff check .
+python -m mypy server.py loader.py search.py api/ agent/ tools/ --ignore-missing-imports
+python -m pytest tests/ -v --tb=short
+```
+
 ### adding a new API endpoint
 
 The architecture is designed for extensibility:
 
 1. Add request/response models in `api/models.py`
-2. Add a method to the appropriate manager (`api/bots.py`, `api/commands.py`, or `api/bot_control.py`)
+2. Add a method to the appropriate manager (`api/bots.py`, `api/commands.py`, or `api/bot_control.py`) using pooled `TeleBotStudioClient`
 3. Add a tool function in the appropriate `tools/` module with the `@mcp.tool` decorator
-4. If it's destructive, add a `confirm` parameter with preview support
-5. If it's a multi-step operation, add a planner method in `agent/planner.py`
+4. If it's destructive, require `confirm: bool = False` with preview output when `confirm=False`
+5. If it's a multi-step operation, add planner/validator/executor handling in `agent/`
+6. Add mocked unit tests in `tests/`
 
-### adding documentation
+### adding or refreshing documentation
 
-1. Drop `.md` files into the `docs/` directory (subdirectories are scanned recursively)
-2. Restart the server — the BM25 index rebuilds automatically
+1. Run `python crawler.py` and `python download_docs.py` to pull & sanitize official pages, or drop `.md` files into `docs/` (subdirectories like `docs/patterns/` are scanned recursively; see `docs/patterns/TEMPLATE.md`)
+2. Validate with `python build_index.py --validate` and restart the server — the BM25 index rebuilds automatically
 
 ### coding style
 
-PEP 8 with type hints. `from __future__ import annotations` in every file. Keep functions pure where possible.
+PEP 8 with type hints (`mypy` clean across all 27 files) and `ruff` compliance. Start every Python module with `from __future__ import annotations`. Keep functions pure where possible.
 
 ---
 
 ## roadmap
 
-### current (v2.1.0)
+### current (v2.2.0)
 
-- [x] 8 documentation search tools (BM25)
-- [x] 18 bot management API tools
-- [x] Session-scoped credential manager
-- [x] Agent pipeline (Planner → Validator → Preview → Executor)
-- [x] Preview & confirmation for destructive operations
-- [x] Batch operations with per-step error reporting
-- [x] Thread-safe credential storage
-- [x] Async-aware retry logic
-- [x] Docker + Render deployment
-- [x] `/health` endpoint
-- [x] Live API validation against production
-- [x] GitHub Actions CI/CD pipeline
-- [x] Pytest test suite (244 tests)
-- [x] Ruff + mypy linting (zero issues)
+- [x] 8 documentation search tools (BM25) across 39 validated pages (835 chunks)
+- [x] Complete TeleBot Studio v1.1.0 reference (`Lib.PIL`, `Lib.CV`, `Lib.Security`, `Lib.TeleGifts`, `Lib.EVM`, `Lib.TON`, `RefLib`, sync webhooks, async HTTP)
+- [x] 9 runnable TBS implementation patterns across all 7 categories (`docs/patterns/`)
+- [x] 18 bot management API tools covering all 11 REST API v2 endpoints
+- [x] Persistent HTTP Keep-Alive `ConnectionPool` (SHA-256 keyed, 100-tenant LRU, 300s idle eviction)
+- [x] `_SessionMiddleware` + `X-Session-ID` (`contextvars` + thread-local) per-client credential isolation
+- [x] Structural heading hierarchy boosting (`H1 > H2 > H3`), query stopword scaffolding filtering & metadata damping
+- [x] Agent pipeline (Planner → Validator → Preview → Executor) & batch command tools
+- [x] Docker + Render deployment with `/health` session & pool telemetry
+- [x] GitHub Actions CI pipeline, Ruff + MyPy clean (27 files), 300 passing Pytest tests
 
 ### next
 
-- [ ] Connection pooling for API calls
-- [ ] FastMCP session middleware for per-client credential isolation
-- [ ] Exact phrase match boosting for search
-- [ ] Heading hierarchy boosting (H1 > H3)
+- [ ] Exact multi-word phrase proximity boosting in `SearchEngine`
+- [ ] Optional per-session TTL cleanup background sweep in HTTP mode
+- [ ] Live verification (`verified: true`) across all pattern templates
 
 ### future
 
-- [ ] Abstract into a generic documentation MCP framework
+- [ ] Abstract into a generic documentation + REST API MCP server framework
 
 ---
 
 ## changelog
+
+### v2.2.0
+
+- **Documentation corpus & pattern library overhaul**: cleaned 10,753 GitBook backslash escapes (`\*`, `\_`) across all official `.md` files, removed duplicate HTML scrape `help.telebotstudio.com.md`, fixed live API v2 endpoints (`POST /command/by-name`, `GET /commands/list`) and code formatting in `docs/readme.md`, updated `docs/llms.txt.md`, added verified-structure patterns for `systems/` and `integrations/` (9 total patterns across all 7 categories), and populated all category index tables
+- **Documentation engine enhancements**: enabled `get_page()` retrieval for nested subdirectory pages (`patterns/...`), merged YAML frontmatter and empty parent headings into child sections (eliminating all 58 index validation warnings — `835/835` chunks pass cleanly), added Markdown escape normalization in `tokenize()`, damped `Search Keywords` metadata chunks, and avoided double-applying `_score_weights` in `_scoped_search()`
+- **Connection pooling & session isolation**: integrated `ConnectionPool` across all production API/executor paths with `/health` telemetry, documented `_SessionMiddleware` (`X-Session-ID` + `contextvars`), and expanded the offline Pytest suite to **300 tests**
+- **Repository documentation sync**: resolved merge conflict markers in `README.md` and updated `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `PRODUCTION_AUDIT.md`, `pyproject.toml`, and `.github/` templates
 
 ### v2.1.0
 

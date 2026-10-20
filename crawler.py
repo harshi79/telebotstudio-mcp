@@ -66,7 +66,9 @@ def crawl(start_url: str, timeout: int = DEFAULT_TIMEOUT) -> list[str]:
             soup = BeautifulSoup(response.text, "lxml")
 
             for a_tag in soup.find_all("a", href=True):
-                link = urljoin(url, a_tag["href"])
+                raw_href = a_tag["href"]
+                href = raw_href if isinstance(raw_href, str) else raw_href[0]
+                link = urljoin(url, href)
                 parsed = urlparse(link)
 
                 # Stay within the same domain
