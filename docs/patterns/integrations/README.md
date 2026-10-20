@@ -2,6 +2,12 @@
 
 External service connections — patterns for communicating with APIs, webhooks, and third-party platforms.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [Verified External Webhook Receiver & Async API Callback](webhook-hmac-sync-response.md) | `/webhook_payment`, `/trigger_report`, `/handle_report_result` | HMAC-SHA256 webhook verification (`Lib.Security.verifyHMAC`), event idempotency, synchronous HTTP JSON replies (`Bot.setWebhookResponse`), and long-running `Request.post` via `fallback_command` |
+
 ## What Belongs Here
 
 - REST API consumption patterns

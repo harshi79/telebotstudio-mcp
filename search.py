@@ -27,16 +27,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9_.]+")
+_MD_ESCAPE_RE = re.compile(r"\\([_*.])")
 
 
 def tokenize(text: str) -> list[str]:
     """
     Convert text into searchable tokens (lowercase unigrams).
 
-    Splits on non-alphanumeric characters except underscores and dots,
+    Normalizes Markdown punctuation escapes (e.g. ``get\\_jetton`` -> ``get_jetton``)
+    and splits on non-alphanumeric characters except underscores and dots,
     which are preserved for technical identifiers like ``TeleBot.send_message``.
     """
-    return _TOKEN_RE.findall(text.lower())
+    cleaned = _MD_ESCAPE_RE.sub(r"\1", text.lower())
+    return _TOKEN_RE.findall(cleaned)
 
 
 def tokenize_with_bigrams(text: str) -> list[str]:
@@ -246,6 +249,7 @@ class SearchEngine:
     # topical terms) still surfaces it.
     PROMPT_INDEX_HEADINGS: frozenset[str] = frozenset({
         "user prompts this pattern solves",
+        "search keywords",
     })
 
     # Damping multiplier applied to prompt-index sections.  Chosen empirically:
@@ -397,18 +401,56 @@ class SearchEngine:
         """
         Return all chunks belonging to a single markdown file.
 
-        Matches by filename (case-insensitive), with or without the
-        ``.md`` extension.  Returns chunks directly without scores
-        since this is a direct retrieval, not a search.
+        Matches case-insensitively with or without the ``.md`` extension across:
+        1. Exact relative path (e.g. ``getting-started.md`` or
+           ``patterns/ui/paginated-list.md``)
+        2. Sanitized path when slashes were stripped by ``_validate_name``
+           (e.g. ``patternsuipaginated-list.md``)
+        3. Unambiguous basename/stem fallback (e.g. ``paginated-list``)
+
+        Returns chunks directly without scores since this is a direct retrieval.
         """
-        filename = filename.lower().strip()
-        filename_md = filename + ".md"
-        return [
+        target = filename.lower().strip()
+        if not target:
+            return []
+        target_md = target if target.endswith(".md") else f"{target}.md"
+
+        # 1. Exact relative path match
+        exact = [
             chunk
             for chunk in self.chunks
-            if chunk.file.lower() == filename
-            or chunk.file.lower() == filename_md
+            if chunk.file.lower() in (target, target_md)
         ]
+        if exact:
+            return exact
+
+        # 2. Match against slash-stripped relative path (compatible with _validate_name)
+        target_stripped = target.replace("/", "").replace("\\", "")
+        target_stripped_md = (
+            target_stripped if target_stripped.endswith(".md") else f"{target_stripped}.md"
+        )
+        by_sanitized = [
+            chunk
+            for chunk in self.chunks
+            if chunk.file.lower().replace("/", "").replace("\\", "")
+            in (target_stripped, target_stripped_md)
+        ]
+        if by_sanitized:
+            matched_files = {c.file for c in by_sanitized}
+            if len(matched_files) == 1:
+                return by_sanitized
+
+        # 3. Unambiguous basename / stem fallback for nested pages
+        candidate_files = {
+            page
+            for page in self._pages
+            if page.rsplit("/", 1)[-1].lower() in (target, target_md)
+        }
+        if len(candidate_files) == 1:
+            matched_page = next(iter(candidate_files))
+            return [chunk for chunk in self.chunks if chunk.file == matched_page]
+
+        return []
 
     def list_pages(self) -> list[str]:
         """
@@ -557,15 +599,12 @@ class SearchEngine:
 
             # Check if the chunk matches the category
             if flags.get(flag_key, False):
-                # Boost score if title also matches
+                # Boost score if title also matches.
+                # Note: ``score`` returned by ``self.search()`` already includes
+                # ``self._score_weights[chunk_idx]`` (heading weight + prompt damping).
                 title_lower = chunk.title.lower()
                 title_boost = any(kw in title_lower for kw in title_keywords)
-                # Same per-chunk weight used by search(): heading weight with
-                # prompt-index damping.  Identical to the heading weight for
-                # every chunk that is not a prompt-index section.
-                heading_weight = self._score_weights[chunk_idx]
-                # Title boost and heading weight stack multiplicatively
-                boosted_score = score * (1.5 if title_boost else 1.0) * heading_weight
+                boosted_score = score * (1.5 if title_boost else 1.0)
                 flagged.append((chunk, boosted_score))
 
         if flagged:

@@ -183,8 +183,24 @@ class MarkdownLoader:
 
         inside_code = False
         code_fence_char = ""
+        inside_frontmatter = False
+        frontmatter_end_idx = -1
 
-        for line in lines:
+        # Detect optional YAML frontmatter block at line 0 (--- ... ---)
+        if lines and lines[0].strip() == "---":
+            for fm_idx in range(1, len(lines)):
+                if lines[fm_idx].strip() == "---":
+                    frontmatter_end_idx = fm_idx
+                    inside_frontmatter = True
+                    break
+
+        for idx, line in enumerate(lines):
+            if inside_frontmatter:
+                current_lines.append(line)
+                if idx == frontmatter_end_idx:
+                    inside_frontmatter = False
+                continue
+
             stripped = line.strip()
 
             # Track code fence state
@@ -207,10 +223,30 @@ class MarkdownLoader:
 
                     # Only split on H1-H3; deeper headings remain in content
                     if heading_level <= self.MAX_SPLIT_LEVEL:
-                        # Flush current chunk (if it has content)
-                        if current_lines:
+                        # Check whether current_lines has any non-heading body text
+                        # outside leading YAML frontmatter.  If a parent heading
+                        # (e.g. "## Webhooks") or YAML frontmatter block is
+                        # immediately followed by a section heading with no body
+                        # prose/code yet, attach it as context to the section
+                        # instead of flushing a hollow metadata-only stub chunk.
+                        check_lines = current_lines
+                        if (
+                            check_lines
+                            and check_lines[0].strip() == "---"
+                            and "---" in [ln.strip() for ln in check_lines[1:]]
+                        ):
+                            close_pos = [
+                                ln.strip() for ln in check_lines[1:]
+                            ].index("---") + 2
+                            check_lines = check_lines[close_pos:]
+
+                        has_body = any(
+                            ln.strip() and self._parse_heading(ln) is None
+                            for ln in check_lines
+                        )
+                        if has_body:
                             content = "\n".join(current_lines).strip()
-                            if content:  # Skip empty chunks
+                            if content:
                                 chunks.append(
                                     Chunk(
                                         title=current_title,
@@ -219,11 +255,15 @@ class MarkdownLoader:
                                         content=content,
                                     )
                                 )
+                            current_lines = [line]
+                        else:
+                            # Carry frontmatter / parent heading lines into the child chunk
+                            current_lines = [ln for ln in current_lines if ln.strip()]
+                            current_lines.append(line)
 
-                        # Start new chunk
+                        # Update chunk metadata to the active section heading
                         current_level = heading_level
                         current_title = heading_title
-                        current_lines = [line]
                         continue
 
             current_lines.append(line)

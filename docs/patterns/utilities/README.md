@@ -2,6 +2,12 @@
 
 Reusable helper patterns — small, composable pieces that other patterns depend on.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [Todo Task Manager](todo-task-manager.md) | `/todo`, `*`, `/handler_callback_query` | Personal checklist manager with instant `/todo <task>` add, conversational add flow, 3-column dynamic buttons, and in-place re-rendering |
+
 ## What Belongs Here
 
 - Text formatters (Markdown, HTML, message templates)

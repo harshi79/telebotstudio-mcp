@@ -4,13 +4,16 @@
 
 [project]
 name = "telebotstudio-mcp"
-version = "2.1.0"
+version = "2.2.0"
 description = "BM25-powered TeleBot Studio documentation search & REST API MCP server"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 
 [project.urls]
-Homepage = "https://github.com/telebotstudio/telebotstudio-mcp"
+Homepage = "https://github.com/harshi79/telebotstudio-mcp"
+Repository = "https://github.com/harshi79/telebotstudio-mcp"
+Issues = "https://github.com/harshi79/telebotstudio-mcp/issues"
 
 # ---------------------------------------------------------------------------
 # Tool configuration

@@ -32,6 +32,11 @@ class TestTokenize:
         result = tokenize("TeleBot.send_message")
         assert "telebot.send_message" in result
 
+    def test_unescapes_markdown_escaped_identifiers(self):
+        """Markdown-escaped snake_case identifiers should tokenize intact."""
+        result = tokenize("Lib.TON.get\\_jetton\\_wallet\\_address")
+        assert "lib.ton.get_jetton_wallet_address" in result
+
     def test_lowercase(self):
         result = tokenize("API Reference")
         assert result == ["api", "reference"]
@@ -521,6 +526,12 @@ class TestRetrieval1Ranking:
             "encryptAES",
             "sendGift",
             "fetchBalance",
+            "get_jetton_wallet_address",
+            "register_ton_connect_wallet",
+            "fallback_command",
+            "setWebhookResponse",
+            "is_pinned",
+            "login_token",
             "TON",
             "webhook",
             "broadcast",
@@ -533,3 +544,23 @@ class TestRetrieval1Ranking:
         assert real_engine.search(query, top_k=3), (
             f"keyword query {query!r} returned nothing"
         )
+
+    def test_all_corpus_pages_retrievable_by_get_page(self, real_engine):
+        """Every page returned by list_pages() must be retrievable via get_page()."""
+        from server import _validate_name
+
+        pages = real_engine.list_pages()
+        assert len(pages) >= 35
+        for page in pages:
+            direct = real_engine.get_page(page)
+            assert direct, f"Direct get_page({page!r}) returned empty"
+            via_validator = real_engine.get_page(_validate_name(page))
+            assert via_validator, f"Validated get_page({page!r}) returned empty"
+            assert [c.file for c in via_validator] == [page] * len(via_validator)
+
+    def test_real_corpus_validates_with_zero_issues(self, real_engine):
+        """All real documentation chunks must pass index validation cleanly."""
+        from build_index import validate_chunks
+
+        assert validate_chunks(real_engine) is True
+

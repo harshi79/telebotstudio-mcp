@@ -204,3 +204,16 @@ class TestBuildEngine:
         engine = build_engine(str(docs))
         assert engine is not None
         assert len(engine.chunks) > 0
+
+    def test_builds_engine_with_subdirectory_pages_retrievable(self, tmp_path):
+        docs = tmp_path / "docs"
+        sub = docs / "patterns" / "ui"
+        sub.mkdir(parents=True)
+        (docs / "intro.md").write_text("# Intro\n\nWelcome body text.\n", encoding="utf-8")
+        (sub / "wizard.md").write_text("# Wizard\n\nWizard body text.\n", encoding="utf-8")
+        engine = build_engine(str(docs))
+        assert "patterns/ui/wizard.md" in engine.list_pages()
+        # Both full path (after _validate_name) and stem should resolve cleanly
+        assert len(engine.get_page(_validate_name("patterns/ui/wizard.md"))) == 1
+        assert len(engine.get_page("wizard")) == 1
+

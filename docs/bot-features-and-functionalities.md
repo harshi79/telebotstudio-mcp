@@ -1,129 +1,128 @@
-> For the complete documentation index, see [llms.txt](https://help.telebotstudio.com/llms.txt). Markdown versions of documentation pages are available by appending `.md` to page URLs; this page is available as [Markdown](https://help.telebotstudio.com/bot-features-and-functionalities.md).
 # Bot Features and Functionalities
 This section explores the comprehensive features and functionalities available in TeleBot Studio, demonstrating how to apply them effectively in real-world scenarios. From handling user interactions to automating complex tasks and managing broadcasts, these features empower you to build sophisticated and versatile Telegram bots using TeleBot Syntax (TBS).
-\*\*\*
-## Wildcard Master Command (`\*`)
-The `\*` command serves as a \*\*fallback handler\*\* that triggers when a bot receives a message not matching any predefined command. This powerful feature is essential for creating intelligent default responses and handling unexpected user inputs gracefully.
-\*\*Common Use Cases:\*\*
-\* Providing helpful default responses
-\* Guiding users back to available commands
-\* Logging unrecognized inputs for analysis
-\* Creating conversational fallback flows
-\*\*Example:\*\*
+***
+## Wildcard Master Command (`*`)
+The `*` command serves as a **fallback handler** that triggers when a bot receives a message not matching any predefined command. This powerful feature is essential for creating intelligent default responses and handling unexpected user inputs gracefully.
+**Common Use Cases:**
+* Providing helpful default responses
+* Guiding users back to available commands
+* Logging unrecognized inputs for analysis
+* Creating conversational fallback flows
+**Example:**
 ```python
 Api.sendMessage("I didn't quite catch that. Try /help to see available commands.")
 ```
-\*\*Advanced Example with Contextual Help:\*\*
+**Advanced Example with Contextual Help:**
 ```python
-unknown\_input = msg
-Api.sendMessage(f"'{unknown\_input}' isn't a recognized command.")
+unknown_input = msg
+Api.sendMessage(f"'{unknown_input}' isn't a recognized command.")
 Api.sendMessage("Here are some things you can do:")
 Api.sendMessage("• /start - Begin your journey")
 Api.sendMessage("• /help - Get assistance")
 Api.sendMessage("• /settings - Configure your preferences")
 ```
-\*\*\*
+***
 ## At Handler Command (`@`)
-The `@` command executes \*\*before any other command\*\*, making it perfect for preprocessing, validation, logging, and setting up global conditions. This is your bot's entry point for every user interaction.
-\*\*Key Use Cases:\*\*
-\* Message validation and sanitization
-\* User activity logging and analytics
-\* Authentication checks
-\* Rate limiting enforcement
-\* Context setup for downstream commands
-\*\*Example - Activity Logging:\*\*
+The `@` command executes **before any other command**, making it perfect for preprocessing, validation, logging, and setting up global conditions. This is your bot's entry point for every user interaction.
+**Key Use Cases:**
+* Message validation and sanitization
+* User activity logging and analytics
+* Authentication checks
+* Rate limiting enforcement
+* Context setup for downstream commands
+**Example - Activity Logging:**
 ```python
 # Log user activity
-user\_activity = User.res("activity")
-count = user\_activity.value() if user\_activity.value() else 0
-user\_activity.set(count + 1)
+user_activity = User.res("activity")
+count = user_activity.value() if user_activity.value() else 0
+user_activity.set(count + 1)
 Api.sendMessage("Processing your request...")
 # Execution continues to the matched command
 ```
-\*\*Example - Rate Limiting:\*\*
+**Example - Rate Limiting:**
 ```python
-last\_request = User.fetchData("last\_request\_time")
-current\_time = time.time()
-if last\_request and (current\_time - last\_request) < 2:
+last_request = User.fetchData("last_request_time")
+current_time = time.time()
+if last_request and (current_time - last_request) < 2:
 Api.sendMessage("Please wait a moment before sending another request.")
 else:
-User.storeData("last\_request\_time", current\_time)
+User.storeData("last_request_time", current_time)
 # Continue to next command
 ```
-\*\*\*
+***
 ## Broadcasting Messages
 The broadcasting system allows you to communicate with multiple users simultaneously, enabling announcements, notifications, and targeted messaging campaigns.
-\*\*Core Functions:\*\*
-\* \*\*`Bot.sendBroadcast`\*\*: Send messages or execute commands for groups of users
-\* \*\*`Bot.cancelBroadcast`\*\*: Stop an ongoing broadcast
-\* \*\*`Bot.listBroadcasts`\*\*: View all broadcast campaigns
-\* \*\*`Bot.broadcastStatus`\*\*: Check the status of a specific broadcast
-\* \*\*`Bot.pauseBroadcast`\*\*: Temporarily pause a broadcast
-\*\*Basic Broadcast with Code:\*\*
+**Core Functions:**
+* **`Bot.sendBroadcast`**: Send messages or execute commands for groups of users
+* **`Bot.cancelBroadcast`**: Stop an ongoing broadcast
+* **`Bot.listBroadcasts`**: View all broadcast campaigns
+* **`Bot.broadcastStatus`**: Check the status of a specific broadcast
+* **`Bot.pauseBroadcast`**: Temporarily pause a broadcast
+**Basic Broadcast with Code:**
 ```python
 Bot.sendBroadcast(code="Api.sendMessage('🎉 Exciting news! New features launched!')")
 ```
-\*\*Command-Based Broadcast:\*\*
+**Command-Based Broadcast:**
 ```python
 # Execute a command for all users
-Bot.sendBroadcast(command="send\_weekly\_update")
+Bot.sendBroadcast(command="send_weekly_update")
 ```
-\*\*Function-Based Broadcast:\*\*
+**Function-Based Broadcast:**
 ```python
 Bot.sendBroadcast(function="sendMessage", text="Hello everyone!")
 ```
-\*\*Managing Broadcast Status:\*\*
+**Managing Broadcast Status:**
 ```python
 # List all broadcasts
 broadcasts = Bot.listBroadcasts()
 Api.sendMessage(f"Active broadcasts: {len(broadcasts)}")
 # Check specific broadcast status
-status = Bot.broadcastStatus(broadcast\_id="broadcast\_123")
+status = Bot.broadcastStatus(broadcast_id="broadcast_123")
 Api.sendMessage(f"Status: {status['status']}")
 # Pause if needed
 if status['status'] == 'running':
-Bot.pauseBroadcast(broadcast\_id="broadcast\_123")
+Bot.pauseBroadcast(broadcast_id="broadcast_123")
 ```
-\*\*\*
+***
 ## CAPTCHA Generation and Verification
 Enhance your bot's security with built-in CAPTCHA support, perfect for preventing spam and validating human users.
-\*\*Key Functions:\*\*
-\* \*\*`Bot.createCaptcha`\*\*: Generate a CAPTCHA challenge
-\* \*\*`Bot.verifyCaptcha`\*\*: Validate user responses
-\* \*\*`Bot.sendCaptcha`\*\*: Send CAPTCHA to users
-\*\*Automatic CAPTCHA Flow:\*\*
+**Key Functions:**
+* **`Bot.createCaptcha`**: Generate a CAPTCHA challenge
+* **`Bot.verifyCaptcha`**: Validate user responses
+* **`Bot.sendCaptcha`**: Send CAPTCHA to users
+**Automatic CAPTCHA Flow:**
 ```python
 # Generate CAPTCHA
-captcha\_data = Bot.createCaptcha()
-captcha\_id = captcha\_data['captcha\_id']
+captcha_data = Bot.createCaptcha()
+captcha_id = captcha_data['captcha_id']
 # Send to user
-Bot.sendCaptcha(captcha\_id, caption="Please solve this CAPTCHA to continue")
+Bot.sendCaptcha(captcha_id, caption="Please solve this CAPTCHA to continue")
 # Wait for user response
-Bot.waitForInput("verify\_captcha")
-User.storeData("pending\_captcha\_id", captcha\_id)
+Bot.waitForInput("verify_captcha")
+User.storeData("pending_captcha_id", captcha_id)
 ```
-\*\*Verification Command:\*\*
+**Verification Command:**
 ```python
-# In verify\_captcha command
-user\_answer = msg
-captcha\_id = User.fetchData("pending\_captcha\_id")
-is\_valid = Bot.verifyCaptcha(captcha\_id, user\_answer)
-if is\_valid:
+# In verify_captcha command
+user_answer = msg
+captcha_id = User.fetchData("pending_captcha_id")
+is_valid = Bot.verifyCaptcha(captcha_id, user_answer)
+if is_valid:
 Api.sendMessage("✅ Verification successful!")
-User.removeData("pending\_captcha\_id")
+User.removeData("pending_captcha_id")
 # Continue with protected action
 else:
 Api.sendMessage("❌ Incorrect CAPTCHA. Please try again.")
-Bot.waitForInput("verify\_captcha")
+Bot.waitForInput("verify_captcha")
 ```
-\*\*\*
+***
 ## Error Handling and Debugging
 TeleBot Studio provides comprehensive error handling tools to help you build reliable, production-ready bots.
-\*\*Built-in Features:\*\*
-\* \*\*Error Dashboard\*\*: Access detailed logs in your bot's management panel
-\* \*\*Exception Handling\*\*: Use Python-style try-except blocks
-\* \*\*Error IDs\*\*: Generate unique identifiers for error tracking
-\*\*Basic Error Handling:\*\*
+**Built-in Features:**
+* **Error Dashboard**: Access detailed logs in your bot's management panel
+* **Exception Handling**: Use Python-style try-except blocks
+* **Error IDs**: Generate unique identifiers for error tracking
+**Basic Error Handling:**
 ```python
 try:
 Api.sendMessage("Executing critical operation...")
@@ -131,45 +130,45 @@ Api.sendMessage("Executing critical operation...")
 except ValueError as ve:
 Api.sendMessage(f"Value error occurred: {str(ve)}")
 except Exception as e:
-error\_id = Bot.errorID()
-Api.sendMessage(f"An error occurred. Error ID: {error\_id}")
+error_id = Bot.errorID()
+Api.sendMessage(f"An error occurred. Error ID: {error_id}")
 Api.sendMessage(f"Details: {str(e)}")
 ```
-\*\*Advanced Error Management:\*\*
+**Advanced Error Management:**
 ```python
 try:
 # Risky operation
-result = some\_api\_call()
+result = some_api_call()
 except ConnectionError:
 Api.sendMessage("Connection failed. Please try again later.")
-Bot.scheduleCommand(300, "retry\_operation") # Retry in 5 minutes
+Bot.scheduleCommand(300, "retry_operation") # Retry in 5 minutes
 except Exception as e:
 # Log error for debugging
-error\_info = {
+error_info = {
 "user": u,
-"command": "operation\_name",
+"command": "operation_name",
 "error": str(e),
 "timestamp": time.time()
 }
-Bot.storeData("error\_log", error\_info)
+Bot.storeData("error_log", error_info)
 # Notify admin
-Api.sendMessage(f"Critical error: {e}", chat\_id="ADMIN\_ID")
+Api.sendMessage(f"Critical error: {e}", chat_id="ADMIN_ID")
 ```
-\*\*\*
+***
 ## Persistent Data Storage
 Manage bot-level and user-level data efficiently with TeleBot Studio's storage system.
-\*\*Bot-Level Storage:\*\*
+**Bot-Level Storage:**
 ```python
 # Store global bot data
-Bot.storeData("total\_users", 1000)
-Bot.storeData("launch\_date", "2025-01-01")
+Bot.storeData("total_users", 1000)
+Bot.storeData("launch_date", "2025-01-01")
 # Retrieve data
-user\_count = Bot.fetchData("total\_users")
-Api.sendMessage(f"Total users: {user\_count}")
+user_count = Bot.fetchData("total_users")
+Api.sendMessage(f"Total users: {user_count}")
 # Remove data
-Bot.removeData("old\_config")
+Bot.removeData("old_config")
 ```
-\*\*User-Level Storage:\*\*
+**User-Level Storage:**
 ```python
 # Save user preferences
 User.storeData("language", "en")
@@ -178,24 +177,24 @@ User.storeData("notifications", True)
 language = User.fetchData("language")
 Api.sendMessage(f"Your language is set to: {language}")
 # Delete user data
-User.removeData("temp\_data")
+User.removeData("temp_data")
 ```
-\*\*Data Export:\*\*
+**Data Export:**
 ```python
 # Export specific bot data
-data\_file = Bot.exportData("user\_stats")
-Api.sendDocument(data\_file)
+data_file = Bot.exportData("user_stats")
+Api.sendDocument(data_file)
 # Export all bot data
-all\_data = Bot.exportAllData()
-Api.sendDocument(all\_data)
+all_data = Bot.exportAllData()
+Api.sendDocument(all_data)
 # Export user list
-users\_file = Bot.exportBotUsersFile()
-Api.sendDocument(users\_file)
+users_file = Bot.exportBotUsersFile()
+Api.sendDocument(users_file)
 ```
-\*\*\*
+***
 ## Resource Management System
 Track and manage numeric resources like points, credits, or currency across users and globally.
-\*\*User Resources:\*\*
+**User Resources:**
 ```python
 # Initialize user points
 points = User.res("points")
@@ -211,42 +210,42 @@ Api.sendMessage("Insufficient points.")
 # Reset points
 points.reset()
 ```
-\*\*Global Bot Resources:\*\*
+**Global Bot Resources:**
 ```python
 # Track global statistics
-total\_messages = Bot.res("total\_messages")
-total\_messages.add(1)
+total_messages = Bot.res("total_messages")
+total_messages.add(1)
 # Display leaderboard
-leaderboard\_data = User.res("points").exportAllData(limit=10)
+leaderboard_data = User.res("points").exportAllData(limit=10)
 Api.sendMessage("🏆 Top 10 Users:")
 ```
-\*\*Another User's Resources:\*\*
+**Another User's Resources:**
 ```python
 # Check another user's resources
-target\_user\_id = 12345
-target\_points = User.resOf("points", target\_user\_id)
-Api.sendMessage(f"User {target\_user\_id} has {target\_points.value()} points")
+target_user_id = 12345
+target_points = User.resOf("points", target_user_id)
+Api.sendMessage(f"User {target_user_id} has {target_points.value()} points")
 ```
-\*\*\*
+***
 ## Command Chaining with Input Handling
 Create multi-step workflows by chaining commands and waiting for user input.
-\*\*Basic Command Chain:\*\*
+**Basic Command Chain:**
 ```python
 # Step 1: Start registration
 Api.sendMessage("Welcome! Let's get you registered.")
 Api.sendMessage("What's your name?")
-Bot.waitForInput("collect\_name")
+Bot.waitForInput("collect_name")
 ```
-\*\*Collect Name Command:\*\*
+**Collect Name Command:**
 ```python
 # Step 2: Process name and ask for email
 name = msg
 User.storeData("name", name)
 Api.sendMessage(f"Nice to meet you, {name}!")
 Api.sendMessage("What's your email address?")
-Bot.waitForInput("collect\_email")
+Bot.waitForInput("collect_email")
 ```
-\*\*Collect Email Command:\*\*
+**Collect Email Command:**
 ```python
 # Step 3: Finalize registration
 email = msg
@@ -258,287 +257,274 @@ Api.sendMessage(f"Name: {User.fetchData('name')}")
 Api.sendMessage(f"Email: {email}")
 else:
 Api.sendMessage("Invalid email. Please try again.")
-Bot.waitForInput("collect\_email")
+Bot.waitForInput("collect_email")
 ```
-\*\*\*
+***
 ## Scheduled Commands
 Schedule commands to execute after a delay or at specific times.
-\*\*Delayed Execution:\*\*
+**Delayed Execution:**
 ```python
 # Send a reminder after 30 seconds
 Api.sendMessage("I'll remind you in 30 seconds.")
-Bot.scheduleCommand(30, "send\_reminder")
+Bot.scheduleCommand(30, "send_reminder")
 ```
-\*\*Reminder Command:\*\*
+**Reminder Command:**
 ```python
 Api.sendMessage("⏰ This is your reminder!")
 ```
-\*\*Multiple Scheduled Tasks:\*\*
+**Multiple Scheduled Tasks:**
 ```python
 Api.sendMessage("Setting up your daily tasks...")
 # Schedule multiple commands
-Bot.scheduleCommand(3600, "hourly\_update") # 1 hour
-Bot.scheduleCommand(86400, "daily\_digest") # 24 hours
-Bot.scheduleCommand(604800, "weekly\_report") # 7 days
+Bot.scheduleCommand(3600, "hourly_update") # 1 hour
+Bot.scheduleCommand(86400, "daily_digest") # 24 hours
+Bot.scheduleCommand(604800, "weekly_report") # 7 days
 Api.sendMessage("All tasks scheduled successfully!")
 ```
-\*\*Quick Follow-up:\*\*
+**Quick Follow-up:**
 ```python
 Api.sendMessage("Processing your request...")
-Bot.scheduleCommand(0.2, "send\_confirmation") # 0.2 seconds later
+Bot.scheduleCommand(0.2, "send_confirmation") # 0.2 seconds later
 ```
-\*\*\*
+***
 ## Membership Verification
 Verify if users are members of specific groups or channels before granting access.
-\*\*Basic Membership Check:\*\*
+**Basic Membership Check:**
 ```python
-is\_member = CheckMembership(u, "@your\_channel")
-if is\_member:
+is_member = CheckMembership(u, "@your_channel")
+if is_member:
 Api.sendMessage("✅ Access granted! You're a member.")
 # Proceed with protected content
 else:
 Api.sendMessage("❌ Please join our channel first:")
-Api.sendMessage("https://t.me/your\_channel")
+Api.sendMessage("https://t.me/your_channel")
 ```
-\*\*Multiple Channel Verification:\*\*
+**Multiple Channel Verification:**
 ```python
-required\_channels = ["@channel1", "@channel2", "@channel3"]
-all\_joined = True
-for channel in required\_channels:
+required_channels = ["@channel1", "@channel2", "@channel3"]
+all_joined = True
+for channel in required_channels:
 if not CheckMembership(u, channel):
-all\_joined = False
+all_joined = False
 Api.sendMessage(f"Please join: {channel}")
-if all\_joined:
+if all_joined:
 Api.sendMessage("✅ All requirements met! Welcome!")
 else:
 Api.sendMessage("Join all channels to continue.")
 ```
-\*\*\*
+***
 ## Webhook Integration
 Create webhooks to enable external systems to trigger bot actions.
-\*\*Generate Webhook URL:\*\*
+**Generate Webhook URL:**
 ```python
-webhook\_url = Lib.Webhook.getUrlFor("process\_payment", user\_id=u)
-Api.sendMessage(f"Your webhook URL:\n{webhook\_url}")
+webhook_url = Lib.Webhook.getUrlFor("process_payment", user_id=u)
+Api.sendMessage(f"Your webhook URL:\n{webhook_url}")
 ```
-\*\*Cross-Bot Communication:\*\*
+**Cross-Bot Communication:**
 ```python
 # Trigger command in another bot
-other\_bot\_webhook = Lib.Webhook.getUrlFor(
-"notify\_user",
-bot\_id="another\_bot\_id",
-api\_key="another\_bot\_api\_key",
-user\_id=u
+other_bot_webhook = Lib.Webhook.getUrlFor(
+"notify_user",
+bot_id="another_bot_id",
+api_key="another_bot_api_key",
+user_id=u
 )
 Api.sendMessage("Notification webhook created for Bot B.")
 ```
-\*\*Payment Webhook Example:\*\*
+**Payment Webhook Example:**
 ```python
-# In process\_payment command
-payment\_data = options
+# In process_payment command
+payment_data = options
 Api.sendMessage("Payment received!")
-Api.sendMessage(f"Amount: ${payment\_data.get('amount')}")
+Api.sendMessage(f"Amount: ${payment_data.get('amount')}")
 # Award points
 points = User.res("points")
-points.add(int(payment\_data.get('amount')) \* 10)
+points.add(int(payment_data.get('amount')) * 10)
 ```
-\*\*\*
+***
 ## Bot Information and Control
 Access comprehensive information about your bot and control its status.
-\*\*Get Bot Information:\*\*
+**Get Bot Information:**
 ```python
-bot\_info = Bot.getInfo()
-Api.sendMessage(f"Bot Name: {bot\_info['first\_name']}")
-Api.sendMessage(f"Username: @{bot\_info['username']}")
-Api.sendMessage(f"Status: {bot\_info['status']}")
+bot_info = Bot.getInfo()
+Api.sendMessage(f"Bot Name: {bot_info['first_name']}")
+Api.sendMessage(f"Username: @{bot_info['username']}")
+Api.sendMessage(f"Status: {bot_info['status']}")
 ```
-\*\*Bot Control:\*\*
+**Bot Control:**
 ```python
 # Start bot
-start\_result = Bot.start()
+start_result = Bot.start()
 Api.sendMessage("Bot started successfully!")
 # Stop bot
-stop\_result = Bot.stop()
+stop_result = Bot.stop()
 Api.sendMessage("Bot stopped.")
 # Check status
 status = Bot.getStatus()
 Api.sendMessage(f"Current status: {status}")
 ```
-\*\*Get Webhook and Payment URLs:\*\*
+**Get Webhook and Payment URLs:**
 ```python
 webhook = Bot.webhookURL()
 Api.sendMessage(f"Webhook URL:\n{webhook}")
-payment\_url = Bot.paymentURL(amount=10.00, currency="USD")
-Api.sendMessage(f"Payment URL:\n{payment\_url}")
+payment_url = Bot.paymentURL(amount=10.00, currency="USD")
+Api.sendMessage(f"Payment URL:\n{payment_url}")
 ```
-\*\*\*
+***
 ## Multi-Step Workflows
 Combine features to create complex, interactive workflows.
-\*\*Complete Registration System:\*\*
+**Complete Registration System:**
 ```python
 # /register command
 Api.sendMessage("📝 Let's set up your account!")
 Api.sendMessage("First, what's your full name?")
-Bot.waitForInput("reg\_name")
+Bot.waitForInput("reg_name")
 ```
-\*\*Step 2 - Name Collection:\*\*
+**Step 2 - Name Collection:**
 ```python
-# reg\_name command
+# reg_name command
 name = msg
 if len(name) < 2:
 Api.sendMessage("Name too short. Please enter your full name.")
-Bot.waitForInput("reg\_name")
+Bot.waitForInput("reg_name")
 else:
-User.storeData("reg\_name", name)
+User.storeData("reg_name", name)
 Api.sendMessage(f"Great, {name}! Now, what's your email?")
-Bot.waitForInput("reg\_email")
+Bot.waitForInput("reg_email")
 ```
-\*\*Step 3 - Email Collection:\*\*
+**Step 3 - Email Collection:**
 ```python
-# reg\_email command
+# reg_email command
 email = msg
 if "@" not in email or "." not in email:
 Api.sendMessage("Invalid email format. Try again:")
-Bot.waitForInput("reg\_email")
+Bot.waitForInput("reg_email")
 else:
-User.storeData("reg\_email", email)
+User.storeData("reg_email", email)
 Api.sendMessage("Finally, set a password (min 8 characters):")
-Bot.waitForInput("reg\_password")
+Bot.waitForInput("reg_password")
 ```
-\*\*Step 4 - Finalization:\*\*
+**Step 4 - Finalization:**
 ```python
-# reg\_password command
+# reg_password command
 password = msg
 if len(password) < 8:
 Api.sendMessage("Password too short. Minimum 8 characters:")
-Bot.waitForInput("reg\_password")
+Bot.waitForInput("reg_password")
 else:
 # Store securely (hash in production)
-User.storeData("reg\_password", hashlib.sha256(password.encode()).hexdigest())
+User.storeData("reg_password", hashlib.sha256(password.encode()).hexdigest())
 # Complete registration
 User.storeData("registered", True)
 points = User.res("points")
 points.set(100) # Welcome bonus
 Api.sendMessage("✅ Registration complete!")
-Api.sendMessage(f"Welcome, {User.fetchData('reg\_name')}!")
+Api.sendMessage(f"Welcome, {User.fetchData('reg_name')}!")
 Api.sendMessage("You've earned 100 welcome points!")
 ```
-\*\*\*
+***
 ## Referral System Implementation
 Build a complete referral tracking system with rewards.
-\*\*Generate Referral Link:\*\*
+**Generate Referral Link:**
 ```python
 # /start command
 referrer = params # Get referral ID from start parameter
 if referrer and referrer != str(u):
 # New user referred by someone
-existing\_user = User.fetchData("referred\_by")
-if not existing\_user: # First time being referred
-User.storeData("referred\_by", referrer)
+existing_user = User.fetchData("referred_by")
+if not existing_user: # First time being referred
+User.storeData("referred_by", referrer)
 # Reward referrer
-referrer\_points = User.resOf("points", int(referrer))
-referrer\_points.add(50)
+referrer_points = User.resOf("points", int(referrer))
+referrer_points.add(50)
 # Notify referrer
 Api.sendMessage(
 f"🎉 Someone joined using your link! +50 points",
-chat\_id=int(referrer)
+chat_id=int(referrer)
 )
 Api.sendMessage("Welcome! You were referred by a friend. Enjoy your stay!")
 # Show user their referral link
-bot\_username = Bot.getInfo()['username']
+bot_username = Bot.getInfo()['username']
 Api.sendMessage("📢 Invite friends and earn rewards!")
-Api.sendMessage(f"Your referral link:\nt.me/{bot\_username}?start={u}")
+Api.sendMessage(f"Your referral link:\nt.me/{bot_username}?start={u}")
 ```
-\*\*View Referral Stats:\*\*
+**View Referral Stats:**
 ```python
 # /referrals command
-referred\_count = Bot.res(f"referral\_count\_{u}").value() or 0
-total\_earned = referred\_count \* 50
+referred_count = Bot.res(f"referral_count_{u}").value() or 0
+total_earned = referred_count * 50
 Api.sendMessage("📊 Your Referral Stats:")
-Api.sendMessage(f"• Total referrals: {referred\_count}")
-Api.sendMessage(f"• Points earned: {total\_earned}")
+Api.sendMessage(f"• Total referrals: {referred_count}")
+Api.sendMessage(f"• Points earned: {total_earned}")
 Api.sendMessage(f"• Current balance: {User.res('points').value()}")
 ```
-\*\*\*
+***
 ## Dynamic Content Generation
 Use resources and data to create personalized user experiences.
-\*\*Personalized Dashboard:\*\*
+**Personalized Dashboard:**
 ```python
 # /dashboard command
 name = User.fetchData("name") or "User"
 points = User.res("points").value() or 0
 level = "Bronze" if points < 100 else "Silver" if points < 500 else "Gold"
-last\_active = User.fetchData("last\_active") or "Never"
+last_active = User.fetchData("last_active") or "Never"
 Api.sendMessage(f"👤 Dashboard for {name}")
 Api.sendMessage(f"💰 Points: {points}")
 Api.sendMessage(f"🏅 Level: {level}")
-Api.sendMessage(f"🕒 Last active: {last\_active}")
+Api.sendMessage(f"🕒 Last active: {last_active}")
 # Update last active
-User.storeData("last\_active", Lib.DateTime.utcnow())
+User.storeData("last_active", Lib.DateTime.utcnow())
 ```
-\*\*\*
+***
 ## Bot Transfer Functionality
 Transfer bot ownership between TeleBot Studio accounts.
-\*\*Transfer Bot:\*\*
+**Transfer Bot:**
 ```python
 result = Bot.transfer(
 email="newowner@example.com",
-bot\_id=bot\_id,
-bot\_token="YOUR\_BOT\_TOKEN",
-run\_now=True
+bot_id=bot_id,
+bot_token="YOUR_BOT_TOKEN",
+run_now=True
 )
 if result['ok']:
 Api.sendMessage(f"Bot transferred successfully!")
 else:
 Api.sendMessage(f"Transfer failed: {result['error']}")
 ```
-\*\*\*
+***
 ## Unique ID Generation
 Generate unique identifiers for various purposes.
-\*\*Random ID:\*\*
+**Random ID:**
 ```python
-session\_id = Bot.randomID()
-User.storeData("session\_id", session\_id)
-Api.sendMessage(f"Your session ID: {session\_id}")
+session_id = Bot.randomID()
+User.storeData("session_id", session_id)
+Api.sendMessage(f"Your session ID: {session_id}")
 ```
-\*\*Unique ID:\*\*
+**Unique ID:**
 ```python
-transaction\_id = Bot.uniqueID()
-Api.sendMessage(f"Transaction ID: {transaction\_id}")
+transaction_id = Bot.uniqueID()
+Api.sendMessage(f"Transaction ID: {transaction_id}")
 ```
-\*\*Error Tracking:\*\*
+**Error Tracking:**
 ```python
 try:
 # Some operation
-risky\_operation()
+risky_operation()
 except Exception as e:
-error\_id = Bot.errorID()
-Api.sendMessage(f"Error {error\_id}: {str(e)}")
+error_id = Bot.errorID()
+Api.sendMessage(f"Error {error_id}: {str(e)}")
 ```
-\*\*\*
+***
 ## Running Commands Directly
 Execute commands immediately within your code.
-\*\*Run Command:\*\*
+**Run Command:**
 ```python
 Api.sendMessage("Redirecting you to the help menu...")
 Bot.run("help")
 ```
-\*\*Run with Parameters:\*\*
+**Run with Parameters:**
 ```python
-Bot.run("process\_data", params="user\_report")
+Bot.run("process_data", params="user_report")
 ```
-\*\*\*
+***
 This comprehensive guide covers the core features and functionalities available in TeleBot Studio. By combining these building blocks, you can create sophisticated bots that handle complex workflows, manage user data efficiently, and provide engaging interactive experiences.
----
-# Agent Instructions
-This documentation is published with GitBook. GitBook is the documentation platform designed so that both humans and AI agents can read, navigate, and reason over technical content effectively. Learn more at gitbook.com.
-## Querying This Documentation
-If you need additional information that is not directly available in this page, you can query the documentation dynamically by asking a question.
-Perform an HTTP GET request on the current page URL with the `ask` query parameter, and the optional `goal` query parameter:
-```
-GET https://help.telebotstudio.com/bot-features-and-functionalities.md?ask=&goal=
-```
-`ask` is the immediate question: it should be specific, self-contained, and written in natural language.
-`goal` is optional and describes the broader end goal you are ultimately trying to accomplish on behalf of the user. GitBook uses it to tailor the answer towards what is most useful for that goal.
-The response will contain a direct answer to the question and relevant excerpts and sources from the documentation.
-Use this mechanism when the answer is not explicitly present in the current page, you need clarification or additional context, or you want to retrieve related documentation sections.

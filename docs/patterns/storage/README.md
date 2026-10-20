@@ -2,6 +2,12 @@
 
 Data persistence and retrieval — patterns for storing, caching, and managing bot and user data.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [User Profile Storage with Edit & Delete](user-profile-storage.md) | `/profile`, `/profile set`, `/profile clear`, `*`, `/handler_callback_query` | Complete per-user CRUD profile flow with conditional empty/populated views, single-field editing, and two-step delete confirmation |
+
 ## What Belongs Here
 
 - Database operations (create, read, update, delete)

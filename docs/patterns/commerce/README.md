@@ -2,6 +2,12 @@
 
 Monetization and transaction patterns — payments, subscriptions, and virtual economies.
 
+## Available Patterns
+
+| Pattern | Commands | Summary |
+|:---|:---|:---|
+| [Referral & Reward System](referral-reward-system.md) | `/start`, `/referral`, `/handler_callback_query` | Deep-link refer-to-earn system with self-referral protection, anti-farming guard, referrer notifications, and in-place dashboard refresh |
+
 ## What Belongs Here
 
 - Payment processing (Telegram Stars, external gateways)
